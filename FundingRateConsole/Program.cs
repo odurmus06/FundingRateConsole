@@ -132,7 +132,7 @@ class Program
     }
     static async Task order()
     {   
-       await SendTelegramMessage("dd");
+       //await SendTelegramMessage("dd");
     }
 
     private static decimal GetNegativeThreshold()
