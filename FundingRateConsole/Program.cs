@@ -1,7 +1,6 @@
 ﻿using Binance.Net.Clients;
 using CryptoExchange.Net.CommonObjects;
 using CryptoExchange.Net.Sockets;
-using FundingRateConsole;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,7 +25,6 @@ class Program
     {
         //_ = SendTelegramMessage("Funding Rate Bot Starting...");
         Console.WriteLine("Funding Rate Bot Starting...");
-        PowerManagement.PreventSleep();
         await StartSubscription();
         Console.ReadKey();
     }

@@ -1,0 +1,66 @@
+# Build klasörleri
+bin/
+obj/
+
+# Rider / VS Code / Visual Studio dosyaları
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Test sonuçları
+TestResults/
+
+# Dotnet kullanıcı gizli ayarları
+*.dotCover
+*.ncrunch*
+*.localhistory
+*.cache
+*.pdb
+
+# Paketler (genellikle tekrar restore edilebilir)
+packages/
+*.nupkg
+
+# Publish çıktıları
+publish/
+out/
+
+# Temporary dosyalar
+*.tmp
+*.temp
+*.log
+
+# MacOS dosyaları
+.DS_Store
+
+# Windows thumbnail dosyası
+Thumbs.db
+
+# Docker dosyaları (optional, istersen)
+docker-compose.override.yml
+
+# Environment ayar dosyaları
+*.env
+
+# secrets.json (eğer ASP.NET Core kullanıyorsan local secret store için)
+secrets.json
+
+# Global JetBrains Rider ayar dosyaları
+.idea/
+
+# Visual Studio Code workspace ayar dosyası
+*.code-workspace
+
+# Global dotnet tools restore klasörü
+.dotnet_tools/
+
+# Son eklenen
+artifacts/
+
+# Git klasörleri
+.git/
+
+.vs/

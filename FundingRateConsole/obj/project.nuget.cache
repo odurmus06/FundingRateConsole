@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "zcvW89VE/O4=",
+  "dgSpecHash": "OmOpywKaCRM=",
   "success": true,
-  "projectFilePath": "C:\\Users\\devel\\YandexDisk\\FundingRateConsole\\FundingRateConsole\\FundingRateConsole.csproj",
+  "projectFilePath": "C:\\Users\\devel\\OneDrive\\Belgeler\\GitHub\\FundingRateConsole\\FundingRateConsole\\FundingRateConsole.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\devel\\.nuget\\packages\\binance.net\\10.18.0\\binance.net.10.18.0.nupkg.sha512",
     "C:\\Users\\devel\\.nuget\\packages\\cryptoexchange.net\\8.8.0\\cryptoexchange.net.8.8.0.nupkg.sha512",

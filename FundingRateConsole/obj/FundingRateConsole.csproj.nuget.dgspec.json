@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\devel\\YandexDisk\\FundingRateConsole\\FundingRateConsole\\FundingRateConsole.csproj": {}
+    "C:\\Users\\devel\\OneDrive\\Belgeler\\GitHub\\FundingRateConsole\\FundingRateConsole\\FundingRateConsole.csproj": {}
   },
   "projects": {
-    "C:\\Users\\devel\\YandexDisk\\FundingRateConsole\\FundingRateConsole\\FundingRateConsole.csproj": {
+    "C:\\Users\\devel\\OneDrive\\Belgeler\\GitHub\\FundingRateConsole\\FundingRateConsole\\FundingRateConsole.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\devel\\YandexDisk\\FundingRateConsole\\FundingRateConsole\\FundingRateConsole.csproj",
+        "projectUniqueName": "C:\\Users\\devel\\OneDrive\\Belgeler\\GitHub\\FundingRateConsole\\FundingRateConsole\\FundingRateConsole.csproj",
         "projectName": "FundingRateConsole",
-        "projectPath": "C:\\Users\\devel\\YandexDisk\\FundingRateConsole\\FundingRateConsole\\FundingRateConsole.csproj",
+        "projectPath": "C:\\Users\\devel\\OneDrive\\Belgeler\\GitHub\\FundingRateConsole\\FundingRateConsole\\FundingRateConsole.csproj",
         "packagesPath": "C:\\Users\\devel\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\devel\\YandexDisk\\FundingRateConsole\\FundingRateConsole\\obj\\",
+        "outputPath": "C:\\Users\\devel\\OneDrive\\Belgeler\\GitHub\\FundingRateConsole\\FundingRateConsole\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
