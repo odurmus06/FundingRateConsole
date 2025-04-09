@@ -149,10 +149,9 @@ class Program
         {
             //Console.WriteLine($"Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {price}");
 
-
             if (condition(fundingRatePercentage))
             {
-                if (nonTargetFundingRates.ContainsKey(symbol))
+                if (nonTargetFundingRates.Equals(symbol))
                 {
                     TargetFundingRates[symbol] = DateTime.Now;
                     nonTargetFundingRates.Remove(symbol);
@@ -161,41 +160,45 @@ class Program
                     _ = SendTelegramMessage($"firstDestinition geçildi  - Symbol: {symbol}");
 
                 }
-                if (nonTargetFundingRates.ContainsKey(symbol) && TargetFundingRates.ContainsKey(symbol))
+                if (nonTargetFundingRates.Equals(symbol) && TargetFundingRates.Equals(symbol))
                 {
                      
                     nonTargetFundingRates.Remove(symbol);
 
                 }
 
-
                 if (fundingRatePercentage <= secondDestinition && 
-                    TargetFundingRates.ContainsKey(symbol) &&
-                    topGainers.Any(x => x.Symbol.Contains(symbol)) &&
+                    TargetFundingRates.Equals(symbol) &&
+                    topGainers.Any(x => x.Symbol.Equals(symbol)) &&
                     isOrderActive == false
                     )
                 {
 
-                    _ = SendTelegramMessage($"second geçildi  - Symbol: {{symbol}} | Funding Rate: {{fundingRatePercentage}} | Mark Price: {{price}}\"");
+                    var bulunan = topGainers.FirstOrDefault(x => x.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase));
+
+                    // Change değerini kontrol edip, formatlıyoruz
+                    string changeText = !string.IsNullOrEmpty(bulunan.Symbol)
+                        ? bulunan.Change.ToString("0.00") + "%"
+                        : "Bulunamadı";
+
+                    // Mesajı göndermekte kullanıyoruz:
+                    await SendTelegramMessage($"second geçildi  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {price} | Change: {changeText}");
 
                     isOrderActive = true;
-
-
                 }
             }
             else
             {
-                if (!nonTargetFundingRates.ContainsKey(symbol))
+                if (!nonTargetFundingRates.Equals(symbol))
                 {
                     nonTargetFundingRates[symbol] = DateTime.Now;
                    
                 }
-                else if (TargetFundingRates.ContainsKey(symbol))
+                else if (TargetFundingRates.Equals(symbol))
                 {
                     TargetFundingRates.Remove(symbol);
                 }
                
-
             }
         }
         catch (Exception ex)
