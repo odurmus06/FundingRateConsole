@@ -16,14 +16,17 @@ class Program
     private static Dictionary<string, DateTime> nonTargetFundingRates = new();
     private static Dictionary<string, DateTime> TargetFundingRates = new();
 
-    private static decimal firstDestinition = -0.2m;
-    private static decimal secondDestinition = -0.4m;
+    private static decimal firstDestinition = -1.5m;
+    private static decimal secondDestinition = -2m;
     private static decimal speedTrashold = 1;
+    private static int topGainerCount = 2;
+
+
     private static bool isOrderActive = false;
     private static List<(string Symbol, decimal Change)> topGainers = new();
     static async Task Main(string[] args)
     {
-        //_ = SendTelegramMessage("Funding Rate Bot Starting...");
+        _ = SendTelegramMessage("Console Uygulaması başlatıldı.");
         Console.WriteLine("Funding Rate Bot Starting...");
         await StartSubscription();
         Console.ReadKey();
@@ -121,7 +124,7 @@ class Program
         {
             var sorted = update.Data
                .OrderByDescending(t => t.PriceChangePercent) // Büyükten küçüğe sırala
-               .Take(5) // En büyük 5 tanesini al
+               .Take(topGainerCount) // En büyük 5 tanesini al
                .Select(t => (t.Symbol, t.PriceChangePercent)) // Gerekli bilgiyi al
                .ToList();
 
@@ -154,7 +157,8 @@ class Program
                     TargetFundingRates[symbol] = DateTime.Now;
                     nonTargetFundingRates.Remove(symbol);
 
-                    Console.WriteLine($"firstDestinition geçildi  - Symbol: {symbol}");
+                  
+                    _ = SendTelegramMessage($"firstDestinition geçildi  - Symbol: {symbol}");
 
                 }
                 if (nonTargetFundingRates.ContainsKey(symbol) && TargetFundingRates.ContainsKey(symbol))
@@ -165,13 +169,17 @@ class Program
                 }
 
 
-                if (fundingRatePercentage <= secondDestinition && TargetFundingRates.ContainsKey(symbol))
+                if (fundingRatePercentage <= secondDestinition && 
+                    TargetFundingRates.ContainsKey(symbol) &&
+                    topGainers.Any(x => x.Symbol.Contains(symbol)) &&
+                    isOrderActive == false
+                    )
                 {
-                    decimal speed = CalculateFundingRateSpeed(firstDestinition, TargetFundingRates[symbol], fundingRatePercentage, DateTime.Now);
 
-                    Console.WriteLine($"secondDestinition geçildi - Symbol: {symbol}, Hız: {speed.ToString("F4")}");
+                    _ = SendTelegramMessage($"second geçildi  - Symbol: {{symbol}} | Funding Rate: {{fundingRatePercentage}} | Mark Price: {{price}}\"");
 
-                    await order();
+                    isOrderActive = true;
+
 
                 }
             }
