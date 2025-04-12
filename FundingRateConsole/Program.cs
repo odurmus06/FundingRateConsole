@@ -16,7 +16,7 @@ class Program
     private static Dictionary<string, DateTime> nonTargetFundingRates = new();
     private static Dictionary<string, DateTime> TargetFundingRates = new();
 
-    private static decimal firstDestinition = -1.8m;
+    private static decimal firstDestinition = -1.7860m;
     private static decimal secondDestinition = -2m;
     private static decimal speedTrashold = 1;
     private static int topGainerCount = 2;
