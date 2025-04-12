@@ -16,7 +16,7 @@ class Program
     private static Dictionary<string, DateTime> nonTargetFundingRates = new();
     private static Dictionary<string, DateTime> TargetFundingRates = new();
 
-    private static decimal firstDestinition = -1.7860m;
+    private static decimal firstDestinition = -1.5m;
     private static decimal secondDestinition = -2m;
     private static decimal speedTrashold = 1;
     private static int topGainerCount = 2;
@@ -157,7 +157,7 @@ class Program
                     nonTargetFundingRates.Remove(symbol);
 
                   
-                    _ = SendTelegramMessage($"firstDestinition geçildi  - Symbol: {symbol}");
+                    await SendTelegramMessage($"firstDestinition geçildi  - Symbol: {symbol}");
 
                 }
                 if (nonTargetFundingRates.ContainsKey(symbol) && TargetFundingRates.ContainsKey(symbol))
@@ -198,7 +198,11 @@ class Program
                 {
                     TargetFundingRates.Remove(symbol);
                 }
-               
+                else if (nonTargetFundingRates.ContainsKey(symbol))
+                {
+                    nonTargetFundingRates.Remove(symbol);
+                }
+
             }
         }
         catch (Exception ex)
