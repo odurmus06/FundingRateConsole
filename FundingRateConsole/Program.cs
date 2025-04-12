@@ -198,10 +198,10 @@ class Program
                 {
                     TargetFundingRates.Remove(symbol);
                 }
-                else if (nonTargetFundingRates.ContainsKey(symbol))
-                {
-                    nonTargetFundingRates.Remove(symbol);
-                }
+                //else if (nonTargetFundingRates.ContainsKey(symbol))
+                //{
+                //    nonTargetFundingRates.Remove(symbol);
+                //}
 
             }
         }
