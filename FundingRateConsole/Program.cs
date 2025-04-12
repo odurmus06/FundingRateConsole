@@ -16,7 +16,7 @@ class Program
     private static Dictionary<string, DateTime> nonTargetFundingRates = new();
     private static Dictionary<string, DateTime> TargetFundingRates = new();
 
-    private static decimal firstDestinition = -1.5m;
+    private static decimal firstDestinition = -1.8m;
     private static decimal secondDestinition = -2m;
     private static decimal speedTrashold = 1;
     private static int topGainerCount = 2;
@@ -151,7 +151,7 @@ class Program
 
             if (condition(fundingRatePercentage))
             {
-                if (nonTargetFundingRates.Equals(symbol))
+                if (nonTargetFundingRates.ContainsKey(symbol))
                 {
                     TargetFundingRates[symbol] = DateTime.Now;
                     nonTargetFundingRates.Remove(symbol);
@@ -160,7 +160,7 @@ class Program
                     _ = SendTelegramMessage($"firstDestinition geçildi  - Symbol: {symbol}");
 
                 }
-                if (nonTargetFundingRates.Equals(symbol) && TargetFundingRates.Equals(symbol))
+                if (nonTargetFundingRates.ContainsKey(symbol) && TargetFundingRates.ContainsKey(symbol))
                 {
                      
                     nonTargetFundingRates.Remove(symbol);
@@ -168,7 +168,7 @@ class Program
                 }
 
                 if (fundingRatePercentage <= secondDestinition && 
-                    TargetFundingRates.Equals(symbol) &&
+                    TargetFundingRates.ContainsKey(symbol) &&
                     topGainers.Any(x => x.Symbol.Equals(symbol)) &&
                     isOrderActive == false
                     )
@@ -189,12 +189,12 @@ class Program
             }
             else
             {
-                if (!nonTargetFundingRates.Equals(symbol))
+                if (!nonTargetFundingRates.ContainsKey(symbol))
                 {
                     nonTargetFundingRates[symbol] = DateTime.Now;
                    
                 }
-                else if (TargetFundingRates.Equals(symbol))
+                else if (TargetFundingRates.ContainsKey(symbol))
                 {
                     TargetFundingRates.Remove(symbol);
                 }
@@ -203,7 +203,7 @@ class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Hata: {ex.Message}");
+            _ = SendTelegramMessage(ex.Message);
         }
     }
 }
