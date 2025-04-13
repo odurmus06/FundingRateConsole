@@ -1,4 +1,5 @@
 ﻿using Binance.Net.Clients;
+using Binance.Net.Enums;
 using CryptoExchange.Net.CommonObjects;
 using CryptoExchange.Net.Sockets;
 using System;
@@ -10,6 +11,7 @@ using Telegram.Bot;
 class Program
 {
     private static readonly BinanceSocketClient socketClient = new BinanceSocketClient();
+    private static readonly BinanceRestClient client = new BinanceRestClient();
     private static List<FundingRateRecord> fundingRateRecords = new List<FundingRateRecord>();
     private static readonly string botToken = "7938765330:AAFC6-bpOiffLaa8iSQwpzl0h3FR_yYT4s4";
     private static readonly string chatId = "7250151162";
@@ -142,6 +144,74 @@ class Program
     {
         return firstDestinition;
     }
+    public async Task CheckVolumeAndMomentumWithFR(string symbol)
+    {
+        try
+        {
+            // Son 24 saatlik 1 saatlik mum verilerini çekiyoruz
+            var klines = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.OneHour, limit: 24);
+
+            // Son 1 saatin hacmi
+            decimal lastVolume = klines.Data.Last().Volume;
+
+            // Son 23 saatin ortalama hacmi
+            decimal averageVolume = klines.Data.Take(23).Average(kline => kline.Volume);
+
+            // Hacim kontrolü: 2 katına çıkmış mı?
+            if (lastVolume > 2 * averageVolume)
+            {
+                Console.WriteLine("Hacim 2 katına çıkmış, işlem yapabilirsin.");
+            }
+            else
+            {
+                Console.WriteLine("Hacim artmamış, işlem yapma.");
+                return;
+            }
+
+            // Son 5 dakikalık fiyat verisini alıyoruz
+            var klines5Min = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.OneMinute, limit: 5);
+
+            // Son 5 dakikalık açılış ve kapanış fiyatları
+            decimal openPrice = klines5Min.Data.First().OpenPrice;
+            decimal closePrice = klines5Min.Data.Last().ClosePrice;
+
+            // Değişim yüzdesi hesaplama
+            decimal changePercent = ((closePrice - openPrice) / openPrice) * 100;
+
+            if (changePercent > -1)
+            {
+                Console.WriteLine("Momentum hala iyi, işlem yapılabilir.");
+            }
+            else
+            {
+                Console.WriteLine("Momentum kaybı var, işlem yapma.");
+                return;
+            }
+
+            // Funding rate kontrolü
+            var fundingRates =  await client.UsdFuturesApi.ExchangeData.GetFundingRatesAsync(symbol);
+            var latestFundingRate = fundingRates.Data.Last();
+
+            // Funding rate -2 ve zamanın yarım saatten kısa olması durumunu kontrol et
+            DateTime nextFundingTime = latestFundingRate.FundingTime;
+            TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
+
+            if (latestFundingRate.FundingRate == -2 && timeRemaining.TotalMinutes <= 30)
+            {
+                Console.WriteLine("Funding rate -2, ve sonraki FR zamanı 30 dakika içinde. Olası geri çekilme, dikkatli ol.");
+            }
+            else
+            {
+                Console.WriteLine("Funding rate normal, işlem yapılabilir.");
+            }
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Hata oluştu: " + ex.Message);
+        }
+    }
+
 
     private static async Task HandleFundingRateAsync(string symbol, decimal fundingRatePercentage, string dateTime, Func<decimal, bool> condition, decimal price)
     {
@@ -155,7 +225,6 @@ class Program
                 {
                     TargetFundingRates[symbol] = DateTime.Now;
                     nonTargetFundingRates.Remove(symbol);
-
                   
                     await SendTelegramMessage($"firstDestinition geçildi  - Symbol: {symbol}");
 
@@ -168,8 +237,8 @@ class Program
                 }
 
                 if (fundingRatePercentage <= secondDestinition && 
-                    TargetFundingRates.ContainsKey(symbol) &&
-                    topGainers.Any(x => x.Symbol.Equals(symbol)) &&
+                    //TargetFundingRates.ContainsKey(symbol) &&
+                    //topGainers.Any(x => x.Symbol.Equals(symbol)) &&
                     isOrderActive == false
                     )
                 {
@@ -184,7 +253,8 @@ class Program
                     // Mesajı göndermekte kullanıyoruz:
                     await SendTelegramMessage($"second geçildi  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {price} | Change: {changeText}");
 
-                    isOrderActive = true;
+                    TargetFundingRates.Remove(symbol);
+
                 }
             }
             else
@@ -198,11 +268,6 @@ class Program
                 {
                     TargetFundingRates.Remove(symbol);
                 }
-                //else if (nonTargetFundingRates.ContainsKey(symbol))
-                //{
-                //    nonTargetFundingRates.Remove(symbol);
-                //}
-
             }
         }
         catch (Exception ex)
@@ -211,7 +276,6 @@ class Program
         }
     }
 }
-
 
 public class FundingRateRecord
 {
