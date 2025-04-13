@@ -144,7 +144,7 @@ class Program
     {
         return firstDestinition;
     }
-    public async Task CheckVolumeAndMomentumWithFR(string symbol)
+    private static async Task CheckVolumeAndMomentumWithFR(string symbol)
     {
         try
         {
@@ -161,11 +161,13 @@ class Program
             if (lastVolume > 2 * averageVolume)
             {
                 Console.WriteLine("Hacim 2 katına çıkmış, işlem yapabilirsin.");
+
+                await SendTelegramMessage($"Hacim 2 katına çıkmış, işlem yapabilirsin.  - Symbol: {symbol}");
             }
             else
             {
                 Console.WriteLine("Hacim artmamış, işlem yapma.");
-                return;
+                await SendTelegramMessage($"Hacim artmamış, işlem yapma.  - Symbol: {symbol}");
             }
 
             // Son 5 dakikalık fiyat verisini alıyoruz
@@ -181,11 +183,12 @@ class Program
             if (changePercent > -1)
             {
                 Console.WriteLine("Momentum hala iyi, işlem yapılabilir.");
+                await SendTelegramMessage($"Momentum hala iyi, işlem yapılabilir. - Symbol: {symbol}");
             }
             else
             {
-                Console.WriteLine("Momentum kaybı var, işlem yapma.");
-                return;
+                await SendTelegramMessage($"Momentum kötü. - Symbol: {symbol}");
+
             }
 
             // Funding rate kontrolü
@@ -196,13 +199,13 @@ class Program
             DateTime nextFundingTime = latestFundingRate.FundingTime;
             TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
 
-            if (latestFundingRate.FundingRate == -2 && timeRemaining.TotalMinutes <= 30)
+            if (timeRemaining.TotalMinutes <= 30)
             {
-                Console.WriteLine("Funding rate -2, ve sonraki FR zamanı 30 dakika içinde. Olası geri çekilme, dikkatli ol.");
+                await SendTelegramMessage($"fr time yakın işlem yapma. - Symbol: {symbol}");
             }
             else
             {
-                Console.WriteLine("Funding rate normal, işlem yapılabilir.");
+                await SendTelegramMessage($"fr time güzel işlem yapabilirsin. - Symbol: {symbol}");
             }
 
         }
@@ -252,7 +255,7 @@ class Program
 
                     // Mesajı göndermekte kullanıyoruz:
                     await SendTelegramMessage($"second geçildi  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {price} | Change: {changeText}");
-
+                    await CheckVolumeAndMomentumWithFR(symbol);
                     TargetFundingRates.Remove(symbol);
 
                 }
