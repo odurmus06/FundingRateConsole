@@ -240,7 +240,7 @@ class Program
                 }
 
                 if (fundingRatePercentage <= secondDestinition && 
-                    //TargetFundingRates.ContainsKey(symbol) &&
+                    TargetFundingRates.ContainsKey(symbol) &&
                     //topGainers.Any(x => x.Symbol.Equals(symbol)) &&
                     isOrderActive == false
                     )
