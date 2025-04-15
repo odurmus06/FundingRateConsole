@@ -103,7 +103,7 @@ class Program
                         if (!IntervalFundingRates.ContainsKey(symbol))
                         {
                             IntervalFundingRates[symbol] = DateTime.Now;
-                            await SendTelegramMessage($"Funding Rate Geri Çekilmesi Zamanı: {symbol}");
+                            await SendTelegramMessage($"Scalp geri çekilme fırsatı  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {update.Data.MarkPrice}");
                         }
 
                     }
