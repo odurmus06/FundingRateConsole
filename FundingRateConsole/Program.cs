@@ -17,11 +17,12 @@ class Program
     private static readonly string chatId = "7250151162";
     private static Dictionary<string, DateTime> nonTargetFundingRates = new();
     private static Dictionary<string, DateTime> TargetFundingRates = new();
+    private static Dictionary<string, DateTime> IntervalFundingRates = new();
 
     private static decimal firstDestinition = -1.5m;
     private static decimal secondDestinition = -2m;
     private static decimal speedTrashold = 1;
-    private static int topGainerCount = 2;
+    private static int topGainerCount = 5;
 
 
     private static bool isOrderActive = false;
@@ -90,7 +91,31 @@ class Program
                 var dateTime = update.Data.EventTime.ToString("yyyy-MM-dd HH:mm:ss");
                 var symbol = update.Data.Symbol;
                 var markPrice = update.Data.MarkPrice;
-                
+
+                if ( topGainers.Any(x => x.Symbol.Equals(symbol)))
+                {
+
+                    DateTime nextFundingTime = update.Data.NextFundingTime;
+                    TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
+
+                    if (timeRemaining.TotalMinutes <= 30)
+                    {
+                        if (!IntervalFundingRates.ContainsKey(symbol))
+                        {
+                            IntervalFundingRates[symbol] = DateTime.Now;
+                            await SendTelegramMessage($"Funding Rate Geri Çekilmesi Zamanı: {symbol}");
+                        }
+
+                    }
+                    else
+                    {
+                        if (IntervalFundingRates.ContainsKey(symbol))
+                        {
+                            IntervalFundingRates.Remove(symbol);
+                        }
+                    }
+                }
+
 
                 var negativeThreshold = GetNegativeThreshold();
 
