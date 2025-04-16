@@ -196,56 +196,46 @@ class Program
             // Son 23 saatin ortalama hacmi
             decimal averageVolume = klines.Data.Take(23).Average(kline => kline.Volume);
 
-            // Hacim kontrolü: 2 katına çıkmış mı?
-            if (lastVolume > 2 * averageVolume)
-            {
-                Console.WriteLine("Hacim 2 katına çıkmış, işlem yapabilirsin.");
+            // Hacim kontrolü
+            bool isVolumeDoubled = lastVolume > 2 * averageVolume;
 
-                await SendTelegramMessage($"Hacim 2 katına çıkmış, işlem yapabilirsin.  - Symbol: {symbol}");
-            }
-            else
-            {
-                Console.WriteLine("Hacim artmamış, işlem yapma.");
-                await SendTelegramMessage($"Hacim artmamış, işlem yapma.  - Symbol: {symbol}");
-            }
-
-            // Son 5 dakikalık fiyat verisini alıyoruz
+            // Son 5 dakikalık fiyat verisini al
             var klines5Min = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.OneMinute, limit: 5);
 
-            // Son 5 dakikalık açılış ve kapanış fiyatları
             decimal openPrice = klines5Min.Data.First().OpenPrice;
             decimal closePrice = klines5Min.Data.Last().ClosePrice;
-
-            // Değişim yüzdesi hesaplama
             decimal changePercent = ((closePrice - openPrice) / openPrice) * 100;
-
-            if (changePercent > -1)
-            {
-                Console.WriteLine("Momentum hala iyi, işlem yapılabilir.");
-                await SendTelegramMessage($"Momentum hala iyi, işlem yapılabilir. - Symbol: {symbol}");
-            }
-            else
-            {
-                await SendTelegramMessage($"Momentum kötü. - Symbol: {symbol}");
-
-            }
+            bool isMomentumGood = changePercent > -1;
 
             // Funding rate kontrolü
-            var fundingRates =  await client.UsdFuturesApi.ExchangeData.GetFundingRatesAsync(symbol);
+            var fundingRates = await client.UsdFuturesApi.ExchangeData.GetFundingRatesAsync(symbol);
             var latestFundingRate = fundingRates.Data.Last();
-
-            // Funding rate -2 ve zamanın yarım saatten kısa olması durumunu kontrol et
             DateTime nextFundingTime = latestFundingRate.FundingTime;
             TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
+            bool isFundingTimeNear = timeRemaining.TotalMinutes <= 30;
 
-            if (timeRemaining.TotalMinutes <= 30)
-            {
-                await SendTelegramMessage($"fr time yakın işlem yapma. - Symbol: {symbol}");
-            }
-            else
-            {
-                await SendTelegramMessage($"fr time güzel işlem yapabilirsin. - Symbol: {symbol}");
-            }
+            // Mesaj oluştur
+            string message = $"📊 *Scalp Analizi - {symbol}*\n\n";
+
+            // Hacim
+            message += $"💰 *Hacim*: Son saat hacmi: `{lastVolume:N2}`, Ortalama (23 saat): `{averageVolume:N2}`\n";
+            message += isVolumeDoubled
+                ? "✅ *Hacim 2 katına çıkmış, işlem yapılabilir.*\n"
+                : "⚠️ *Hacim artmamış, işlem yapılmamalı.*\n";
+
+            // Momentum
+            message += $"\n📈 *Momentum (Son 5 dakika)*: %{changePercent:F2}\n";
+            message += isMomentumGood
+                ? "✅ *Momentum hala iyi, işlem yapılabilir.*\n"
+                : "⚠️ *Momentum zayıf.*\n";
+
+            // Funding Rate
+            message += $"\n🕒 *Funding Rate Zamanı*: {nextFundingTime:HH:mm} UTC\n";
+            message += isFundingTimeNear
+                ? "⚠️ *Funding time çok yakın, işlem yapma.*\n"
+                : "✅ *Funding time uygun, işlem yapılabilir.*\n";
+
+            await SendTelegramMessage(message);
 
         }
         catch (Exception ex)
