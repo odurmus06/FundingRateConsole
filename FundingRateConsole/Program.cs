@@ -98,12 +98,26 @@ class Program
                     DateTime nextFundingTime = update.Data.NextFundingTime;
                     TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
 
-                    if (timeRemaining.TotalMinutes <= 30)
+                    if (timeRemaining.TotalMinutes <= 30 && update.Data.FundingRate < 0)
                     {
                         if (!IntervalFundingRates.ContainsKey(symbol))
                         {
                             IntervalFundingRates[symbol] = DateTime.Now;
-                            await SendTelegramMessage($"Scalp geri çekilme fırsatı  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {update.Data.MarkPrice}");
+
+
+                            string message = $"Scalp geri çekilme fırsatı  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {update.Data.MarkPrice}";
+
+                            // topGainers listesini mesajın sonuna ekle
+                            if (topGainers.Any())
+                            {
+                                message += "\n\nTop Gainers:\n";
+                                foreach (var gainer in topGainers)
+                                {
+                                    message += $"- {gainer.Symbol}: %{gainer.Change}\n";
+                                }
+                            }
+
+                            await SendTelegramMessage(message);
                         }
 
                     }
