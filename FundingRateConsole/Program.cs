@@ -22,7 +22,7 @@ class Program
     private static decimal firstDestinition = -1.5m;
     private static decimal secondDestinition = -2m;
     private static decimal speedTrashold = 1;
-    private static int topGainerCount = 5;
+    private static int topGainerCount = 3;
 
 
     private static bool isOrderActive = false;
