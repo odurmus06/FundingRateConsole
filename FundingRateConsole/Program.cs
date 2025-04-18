@@ -26,7 +26,7 @@ class Program
 
     private static List<(string Symbol, decimal Change)> topGainers = new();
     private static readonly object locker = new();
-    private const int topGainerCount = 5;
+    private const int topGainerCount = 3;
     private const decimal minimumVolume = 10_000_000;
 
 
