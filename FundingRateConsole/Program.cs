@@ -22,11 +22,16 @@ class Program
     private static decimal firstDestinition = -1.5m;
     private static decimal secondDestinition = -2m;
     private static decimal speedTrashold = 1;
-    private static int topGainerCount = 3;
+
+
+    private static List<(string Symbol, decimal Change)> topGainers = new();
+    private static readonly object locker = new();
+    private const int topGainerCount = 5;
+    private const decimal minimumVolume = 10_000_000;
 
 
     private static bool isOrderActive = false;
-    private static List<(string Symbol, decimal Change)> topGainers = new();
+
     static async Task Main(string[] args)
     {
         _ = SendTelegramMessage("Console Uygulaması başlatıldı.");
@@ -63,6 +68,7 @@ class Program
     private static async Task StartSubscription()
     {
         await startTicker();
+        //await PrintTopGainersLoop();
         await SubscribeToTickerUpdatesAsync().ContinueWith(t =>
         {
             _ = SendTelegramMessage("Abonelik Başlatılamadı.");
@@ -159,20 +165,81 @@ class Program
 
         await Task.Delay(-1);
     }
+    private static async Task PrintTopGainersLoop()
+    {
+        while (true)
+        {
+            lock (locker)
+            {
+                Console.Clear();
+                Console.WriteLine($"Top Gainers - {DateTime.Now:HH:mm:ss}");
+                Console.WriteLine(new string('-', 30));
+
+                foreach (var (symbol, percent) in topGainers)
+                    Console.WriteLine($"{symbol,-10} | {percent,6:F2} %");
+            }
+
+            await Task.Delay(1000);
+        }
+    }
     private static async Task startTicker()
     {
         var tickerSubscriptionResult = await socketClient.UsdFuturesApi.ExchangeData.SubscribeToAllTickerUpdatesAsync(update =>
         {
-            var sorted = update.Data
-               .OrderByDescending(t => t.PriceChangePercent) // Büyükten küçüğe sırala
-               .Take(topGainerCount) // En büyük 5 tanesini al
-               .Select(t => (t.Symbol, t.PriceChangePercent)) // Gerekli bilgiyi al
-               .ToList();
+            try
+            {
+                lock (locker)
+                {
+                    foreach (var ticker in update.Data)
+                    {
+                        if (ticker.QuoteVolume < minimumVolume || string.IsNullOrEmpty(ticker.Symbol))
+                            continue;
 
-            topGainers = sorted;
+                        var existingIndex = topGainers.FindIndex(x => x.Symbol == ticker.Symbol);
+                        var change = ticker.PriceChangePercent;
 
+                        if (existingIndex != -1)
+                        {
+                            // Güncelle
+                            topGainers[existingIndex] = (ticker.Symbol, change);
+                        }
+                        else
+                        {
+                            // Eğer yer varsa ekle
+                            if (topGainers.Count < topGainerCount)
+                            {
+                                topGainers.Add((ticker.Symbol, change));
+                            }
+                            else
+                            {
+                                // En düşük değişim varsa karşılaştır ve gerekiyorsa değiştir
+                                var minChange = topGainers.Min(x => x.Change);
+                                if (change > minChange)
+                                {
+                                    var minIndex = topGainers.FindIndex(x => x.Change == minChange);
+                                    topGainers[minIndex] = (ticker.Symbol, change);
+                                }
+                            }
+                        }
+
+                        // Listeyi her defasında sırala
+                        topGainers = topGainers
+                            .OrderByDescending(x => x.Change)
+                            .Take(topGainerCount)
+                            .ToList();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ticker güncelleme hatası: {ex.Message}");
+            }
         });
- 
+
+        if (!tickerSubscriptionResult.Success)
+        {
+            Console.WriteLine($"Ticker aboneliği başarısız: {tickerSubscriptionResult.Error}");
+        }
     }
     static async Task order()
     {   
@@ -208,14 +275,13 @@ class Program
             bool isMomentumGood = changePercent > -1;
 
             // Funding rate kontrolü
-            var fundingRates = await client.UsdFuturesApi.ExchangeData.GetFundingRatesAsync(symbol);
-            var latestFundingRate = fundingRates.Data.Last();
-            DateTime nextFundingTime = latestFundingRate.FundingTime;
+
+            DateTime nextFundingTime = client.UsdFuturesApi.ExchangeData.GetMarkPriceAsync(symbol).Result.Data.NextFundingTime;
             TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
             bool isFundingTimeNear = timeRemaining.TotalMinutes <= 30;
 
             // Mesaj oluştur
-            string message = $"📊 *Scalp Analizi - {symbol}*\n\n";
+            string message = $"📊 *Long Analizi - {symbol}*\n\n";
 
             // Hacim
             message += $"💰 *Hacim*: Son saat hacmi: `{lastVolume:N2}`, Ortalama (23 saat): `{averageVolume:N2}`\n";
