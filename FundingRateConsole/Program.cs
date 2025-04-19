@@ -122,7 +122,7 @@ class Program
                                     message += $"- {gainer.Symbol}: %{gainer.Change}\n";
                                 }
                             }
-                            await CheckVolumeAndMomentumWithFR(symbol);
+
                             await SendTelegramMessage(message);
                         }
 
@@ -280,7 +280,7 @@ class Program
             // Funding rate kontrolü
 
             DateTime nextFundingTime = client.UsdFuturesApi.ExchangeData.GetMarkPriceAsync(symbol).Result.Data.NextFundingTime;
-            TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
+            TimeSpan timeRemaining = nextFundingTime - DateTime.Now;
             bool isFundingTimeNear = timeRemaining.TotalMinutes <= 30;
 
             // Mesaj oluştur
@@ -299,7 +299,7 @@ class Program
                 : "⚠️ *Momentum zayıf.*\n";
 
             // Funding Rate
-            message += $"\n🕒 *Funding Rate Zamanı*: {nextFundingTime:HH:mm} UTC\n";
+            message += $"\n🕒 *Funding Rate Zamanı*: {nextFundingTime:HH:mm}\n";
             message += isFundingTimeNear
                 ? "⚠️ *Funding time çok yakın, işlem yapma.*\n"
                 : "✅ *Funding time uygun, işlem yapılabilir.*\n";
