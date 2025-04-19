@@ -104,7 +104,7 @@ class Program
                     DateTime nextFundingTime = update.Data.NextFundingTime;
                     TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
 
-                    if (timeRemaining.TotalMinutes <= 30 && update.Data.FundingRate < 0)
+                    if (timeRemaining.TotalMinutes <= 10 && update.Data.FundingRate < 0)
                     {
                         if (!IntervalFundingRates.ContainsKey(symbol))
                         {
