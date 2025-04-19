@@ -11,27 +11,35 @@ using Telegram.Bot;
 
 class Program
 {
+    // Binance API ve Socket Client
     private static readonly BinanceSocketClient socketClient = new BinanceSocketClient();
     private static readonly BinanceRestClient client = new BinanceRestClient();
+
+    // Funding Rate Verisi ve Koleksiyonlar
     private static List<FundingRateRecord> fundingRateRecords = new List<FundingRateRecord>();
-    private static readonly string botToken = "7938765330:AAFC6-bpOiffLaa8iSQwpzl0h3FR_yYT4s4";
-    private static readonly string chatId = "7250151162";
     private static ConcurrentDictionary<string, DateTime> nonTargetFundingRates = new();
     private static ConcurrentDictionary<string, DateTime> TargetFundingRates = new();
     private static ConcurrentDictionary<string, DateTime> IntervalFundingRates = new();
+    private static ConcurrentDictionary<string, DateTime> NegativeTwoFundingRates = new();
+    // Telegram Bot Bilgileri
+    private static readonly string botToken = "7938765330:AAFC6-bpOiffLaa8iSQwpzl0h3FR_yYT4s4";
+    private static readonly string chatId = "7250151162";
 
+    // Hedef Değerler ve Eşikler
     private static decimal firstDestinition = -1.5m;
     private static decimal secondDestinition = -2m;
     private static decimal speedTrashold = 1;
 
-
+    // Top Gainers
     private static List<(string Symbol, decimal Change)> topGainers = new();
-    private static readonly object locker = new();
     private const int topGainerCount = 5;
     private const decimal minimumVolume = 10_000_000;
 
-
+    // Order Durumu
     private static bool isOrderActive = false;
+
+    // Diğer Değişkenler
+    private static readonly object locker = new();
 
     static async Task Main(string[] args)
     {
@@ -101,7 +109,30 @@ class Program
                     var symbol = update.Data.Symbol;
                     var markPrice = update.Data.MarkPrice;
 
-                    if (topGainers.Any(x => x.Symbol.Equals(symbol)))
+                    if (fundingRatePercentage <= secondDestinition)
+                    {
+                        if (!NegativeTwoFundingRates.ContainsKey(symbol))
+                        {
+                            NegativeTwoFundingRates[symbol] = DateTime.Now;
+                            nonTargetFundingRates.TryRemove(symbol, out _);
+
+                            await SendTelegramMessage($"firstDestinition geçildi  - Symbol: {symbol}");
+
+                        }
+                    }
+                    else
+                    {
+                        if (NegativeTwoFundingRates.ContainsKey(symbol))
+                        {
+                            
+                            NegativeTwoFundingRates.TryRemove(symbol, out _);
+
+                            await SendTelegramMessage($"-2 short fırsatı - Symbol: {symbol}");
+
+                        }
+                    }
+
+                        if (topGainers.Any(x => x.Symbol.Equals(symbol)))
                     {
                         DateTime nextFundingTime = update.Data.NextFundingTime;
                         TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
