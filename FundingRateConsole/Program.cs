@@ -68,7 +68,7 @@ class Program
     private static async Task StartSubscription()
     {
         await startTicker();
-        await PrintTopGainersLoop();
+        //await PrintTopGainersLoop();
         await SubscribeToTickerUpdatesAsync().ContinueWith(t =>
         {
             _ = SendTelegramMessage("Abonelik Başlatılamadı.");
