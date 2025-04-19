@@ -122,7 +122,7 @@ class Program
                                     message += $"- {gainer.Symbol}: %{gainer.Change}\n";
                                 }
                             }
-
+                            await CheckVolumeAndMomentumWithFR(symbol);
                             await SendTelegramMessage(message);
                         }
 
