@@ -19,7 +19,7 @@ class Program
     private static Dictionary<string, DateTime> TargetFundingRates = new();
     private static Dictionary<string, DateTime> IntervalFundingRates = new();
 
-    private static decimal firstDestinition = -0.19m;
+    private static decimal firstDestinition = -1.5m;
     private static decimal secondDestinition = -2m;
     private static decimal speedTrashold = 1;
 
@@ -104,7 +104,7 @@ class Program
                     DateTime nextFundingTime = update.Data.NextFundingTime;
                     TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
 
-                    if (timeRemaining.TotalMinutes <= 10 && update.Data.FundingRate < 0)
+                    if (timeRemaining.TotalMinutes <= 30 && update.Data.FundingRate < 0)
                     {
                         if (!IntervalFundingRates.ContainsKey(symbol))
                         {
