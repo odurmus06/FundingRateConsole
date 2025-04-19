@@ -114,21 +114,15 @@ class Program
                         if (!NegativeTwoFundingRates.ContainsKey(symbol))
                         {
                             NegativeTwoFundingRates[symbol] = DateTime.Now;
-                            nonTargetFundingRates.TryRemove(symbol, out _);
-
-                            await SendTelegramMessage($"firstDestinition geçildi  - Symbol: {symbol}");
-
+                            await SendTelegramMessage($"-2 geçildi  - Symbol: {symbol}");
                         }
                     }
                     else
                     {
                         if (NegativeTwoFundingRates.ContainsKey(symbol))
                         {
-                            
                             NegativeTwoFundingRates.TryRemove(symbol, out _);
-
                             await SendTelegramMessage($"-2 short fırsatı - Symbol: {symbol}");
-
                         }
                     }
 
