@@ -232,13 +232,16 @@ class Program
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ticker güncelleme hatası: {ex.Message}");
+                 _= SendTelegramMessage($"Ticker güncelleme hatası: {ex.Message}");
             }
         });
 
         if (!tickerSubscriptionResult.Success)
         {
             Console.WriteLine($"Ticker aboneliği başarısız: {tickerSubscriptionResult.Error}");
+
+            _ = SendTelegramMessage($"Ticker aboneliği başarısız: {tickerSubscriptionResult.Error}");
+
         }
     }
     static async Task order()
@@ -373,6 +376,7 @@ class Program
             _ = SendTelegramMessage(ex.Message);
         }
     }
+
 }
 
 public class FundingRateRecord
