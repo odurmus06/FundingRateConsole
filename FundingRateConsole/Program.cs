@@ -19,7 +19,7 @@ class Program
     private static Dictionary<string, DateTime> TargetFundingRates = new();
     private static Dictionary<string, DateTime> IntervalFundingRates = new();
 
-    private static decimal firstDestinition = -0.185m;
+    private static decimal firstDestinition = -0.19m;
     private static decimal secondDestinition = -2m;
     private static decimal speedTrashold = 1;
 
