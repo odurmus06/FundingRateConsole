@@ -3,6 +3,7 @@ using Binance.Net.Enums;
 using CryptoExchange.Net.CommonObjects;
 using CryptoExchange.Net.Sockets;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -15,9 +16,9 @@ class Program
     private static List<FundingRateRecord> fundingRateRecords = new List<FundingRateRecord>();
     private static readonly string botToken = "7938765330:AAFC6-bpOiffLaa8iSQwpzl0h3FR_yYT4s4";
     private static readonly string chatId = "7250151162";
-    private static Dictionary<string, DateTime> nonTargetFundingRates = new();
-    private static Dictionary<string, DateTime> TargetFundingRates = new();
-    private static Dictionary<string, DateTime> IntervalFundingRates = new();
+    private static ConcurrentDictionary<string, DateTime> nonTargetFundingRates = new();
+    private static ConcurrentDictionary<string, DateTime> TargetFundingRates = new();
+    private static ConcurrentDictionary<string, DateTime> IntervalFundingRates = new();
 
     private static decimal firstDestinition = -1.5m;
     private static decimal secondDestinition = -2m;
@@ -93,78 +94,85 @@ class Program
         {
             var tickerSubscriptionResult = await socketClient.UsdFuturesApi.ExchangeData.SubscribeToMarkPriceUpdatesAsync(batch, null, async (update) =>
             {
-                decimal fundingRatePercentage = (decimal)(update.Data.FundingRate ?? 0) * 100;
-                var dateTime = update.Data.EventTime.ToString("yyyy-MM-dd HH:mm:ss");
-                var symbol = update.Data.Symbol;
-                var markPrice = update.Data.MarkPrice;
-
-                if ( topGainers.Any(x => x.Symbol.Equals(symbol)))
+                try
                 {
+                    decimal fundingRatePercentage = (decimal)(update.Data.FundingRate ?? 0) * 100;
+                    var dateTime = update.Data.EventTime.ToString("yyyy-MM-dd HH:mm:ss");
+                    var symbol = update.Data.Symbol;
+                    var markPrice = update.Data.MarkPrice;
 
-                    DateTime nextFundingTime = update.Data.NextFundingTime;
-                    TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
-
-                    if (timeRemaining.TotalMinutes <= 30 && update.Data.FundingRate < 0)
+                    if (topGainers.Any(x => x.Symbol.Equals(symbol)))
                     {
-                        if (!IntervalFundingRates.ContainsKey(symbol))
+                        DateTime nextFundingTime = update.Data.NextFundingTime;
+                        TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
+
+                        if (timeRemaining.TotalMinutes <= 30 && update.Data.FundingRate < 0)
                         {
-                            IntervalFundingRates[symbol] = DateTime.Now;
-
-
-                            string message = $"Scalp geri çekilme fırsatı  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {update.Data.MarkPrice}";
-
-                            // topGainers listesini mesajın sonuna ekle
-                            if (topGainers.Any())
+                            if (!IntervalFundingRates.ContainsKey(symbol))
                             {
-                                message += "\n\nTop Gainers:\n";
-                                foreach (var gainer in topGainers)
+                                // Güvenli ekleme
+                                IntervalFundingRates.TryAdd(symbol, DateTime.Now);
+
+                                string message = $"⚡ Scalp geri çekilme fırsatı\n\n" +
+                                                 $"Symbol: {symbol}\n" +
+                                                 $"Funding Rate: %{fundingRatePercentage:F4}\n" +
+                                                 $"Mark Price: {markPrice}";
+
+                                if (topGainers.Any())
                                 {
-                                    message += $"- {gainer.Symbol}: %{gainer.Change}\n";
+                                    message += "\n\n📈 Top Gainers:\n";
+                                    foreach (var gainer in topGainers)
+                                    {
+                                        message += $"- {gainer.Symbol}: %{gainer.Change}\n";
+                                    }
                                 }
+
+                                await SendTelegramMessage(message);
                             }
-
-                            await SendTelegramMessage(message);
                         }
-
-                    }
-                    else
-                    {
-                        if (IntervalFundingRates.ContainsKey(symbol))
+                        else
                         {
-                            IntervalFundingRates.Remove(symbol);
+                            if (IntervalFundingRates.ContainsKey(symbol))
+                            {
+                                IntervalFundingRates.TryRemove(symbol, out _);
+                            }
                         }
                     }
+
+                    var negativeThreshold = GetNegativeThreshold();
+
+                    await HandleFundingRateAsync(symbol, fundingRatePercentage, dateTime, rate => fundingRatePercentage <= negativeThreshold, markPrice);
                 }
-
-
-                var negativeThreshold = GetNegativeThreshold();
-
-                await HandleFundingRateAsync(symbol, fundingRatePercentage, dateTime, rate => fundingRatePercentage <= negativeThreshold, markPrice);
+                catch (Exception ex)
+                {
+                    await SendTelegramMessage($"⚠️ Funding callback hatası: {ex.Message}");
+                }
             });
 
             if (!tickerSubscriptionResult.Success)
             {
-                Console.WriteLine("Bağlantı başarısız! Yeniden denemeye hazırlanıyor...");
-                //_ = SendTelegramMessage("Bağlantı başarısız! Yeniden denemeye hazırlanıyor...");
+                Console.WriteLine("❌ Bağlantı başarısız! Yeniden denemeye hazırlanıyor...");
+                await SendTelegramMessage("❌ Bağlantı başarısız! Yeniden denemeye hazırlanıyor...");
             }
             else
             {
-                tickerSubscriptionResult.Data.ConnectionLost +=  () =>
+                tickerSubscriptionResult.Data.ConnectionLost += async () =>
                 {
-                    Console.WriteLine("Bağlantı kayboldu! Yeniden bağlanılıyor...");
-                    //_ = SendTelegramMessage("Bağlantı kayboldu! Yeniden bağlanılıyor...");
+                    Console.WriteLine("🔌 Bağlantı kayboldu! Yeniden bağlanılıyor...");
+                    await SendTelegramMessage("🔌 Bağlantı kayboldu! Yeniden bağlanılıyor...");
                 };
 
-                tickerSubscriptionResult.Data.ConnectionRestored += (reconnectTime) =>
+                tickerSubscriptionResult.Data.ConnectionRestored += async (reconnectTime) =>
                 {
-                    Console.WriteLine($"Bağlantı geri geldi: {reconnectTime}");
-                    //_ = SendTelegramMessage($"Bağlantı geri geldi: {reconnectTime}");
+                    Console.WriteLine($"🔁 Bağlantı geri geldi: {reconnectTime}");
+                    await SendTelegramMessage($"🔁 Bağlantı geri geldi: {reconnectTime}");
                 };
             }
         }
 
-        await Task.Delay(-1);
+        await Task.Delay(-1); // sonsuz çalışması için
     }
+
     private static async Task PrintTopGainersLoop()
     {
         while (true)
@@ -325,15 +333,15 @@ class Program
                 if (nonTargetFundingRates.ContainsKey(symbol))
                 {
                     TargetFundingRates[symbol] = DateTime.Now;
-                    nonTargetFundingRates.Remove(symbol);
-                  
+                    nonTargetFundingRates.TryRemove(symbol, out _);
+
                     await SendTelegramMessage($"firstDestinition geçildi  - Symbol: {symbol}");
 
                 }
                 if (nonTargetFundingRates.ContainsKey(symbol) && TargetFundingRates.ContainsKey(symbol))
                 {
                      
-                    nonTargetFundingRates.Remove(symbol);
+                    nonTargetFundingRates.TryRemove(symbol, out _);
 
                 }
 
@@ -354,7 +362,7 @@ class Program
                     // Mesajı göndermekte kullanıyoruz:
                     await SendTelegramMessage($"second geçildi  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {price} | Change: {changeText}");
                     await CheckVolumeAndMomentumWithFR(symbol);
-                    TargetFundingRates.Remove(symbol);
+                    TargetFundingRates.TryRemove(symbol, out _);
 
                 }
             }
@@ -367,7 +375,7 @@ class Program
                 }
                 else if (TargetFundingRates.ContainsKey(symbol))
                 {
-                    TargetFundingRates.Remove(symbol);
+                    TargetFundingRates.TryRemove(symbol, out _);
                 }
             }
         }
