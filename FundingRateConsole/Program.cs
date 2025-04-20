@@ -405,48 +405,44 @@ class Program
 
                                 if (topGainers.Any())
                                 {
-                                    message += "\n\n📈 Top Gainers:\n";
-                                    foreach (var gainer in topGainers)
+
+
+                                    var rsi = await CalculateRSI(symbol, 14);
+                                    if (rsi >= 70)
                                     {
-                                        message += $"- {gainer.Symbol}: %{gainer.Change}\n";
+                                        Console.WriteLine("RSI 70 veya üzeri: Aşırı alım durumu.");
                                     }
 
-                                    //osmx
+                                    // 4. Tepe Noktası Hesaplama
+                                    var highestPrice = await GetHighestPrice(symbol, 1);
+                                    Console.WriteLine($"Son 1 saatte en yüksek fiyat: {highestPrice}");
 
-                                    // Son 24 saatlik 1 saatlik mum verilerini çekiyoruz
-                                    var klines = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.OneHour, limit: 24);
+                                    // 5. Geri Çekilme Durumu
+                                    var retracement = await GetPriceRetracement(symbol);
+                                    if (retracement >= 0.5m && retracement <= 1m)
+                                    {
+                                        Console.WriteLine($"Fiyat %{retracement} geri çekildi.");
+                                    }
 
-                                    // Son 1 saatin hacmi
-                                    decimal lastVolume = klines.Data.Last().Volume;
+                                    // 6. Likidite Durumu
+                                    var volumeCheck = await CheckVolume(symbol);
+                                    if (!volumeCheck)
+                                    {
+                                        Console.WriteLine("Hacim düşüşü veya satış baskısı artmış.");
+                                    }
 
-                                    // Son 23 saatin ortalama hacmi
-                                    decimal averageVolume = klines.Data.Take(23).Average(kline => kline.Volume);
-
-                                    // Hacim kontrolü
-                                    bool isVolumeDoubled = lastVolume > 2 * averageVolume;
-
-                                    // Son 5 dakikalık fiyat verisini al
-                                    var klines5Min = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.OneMinute, limit: 5);
-
-                                    decimal openPrice = klines5Min.Data.First().OpenPrice;
-                                    decimal closePrice = klines5Min.Data.Last().ClosePrice;
-                                    decimal changePercent = ((closePrice - openPrice) / openPrice) * 100;
-                                    bool isMomentumGood = changePercent > -1;
-
-                                    // Hacim
-                                    message += $"💰 *Hacim*: Son saat hacmi: `{lastVolume:N2}`, Ortalama (23 saat): `{averageVolume:N2}`\n";
-                                    message += isVolumeDoubled
-                                        ? "✅ *Hacim 2 katına çıkmış, işlem yapılabilir.*\n"
-                                        : "⚠️ *Hacim artmamış, işlem yapılmamalı.*\n";
-
-                                    // Momentum
-                                    message += $"\n📈 *Momentum (Son 5 dakika)*: %{changePercent:F2}\n";
-                                    message += isMomentumGood
-                                        ? "✅ *Momentum hala iyi, işlem yapılabilir.*\n"
-                                        : "⚠️ *Momentum zayıf.*\n";
+                                    // Tüm koşullar sağlanıyorsa short pozisyon açılabilir
+                                    if (rsi >= 70 && retracement >= 0.5m && retracement <= 1m && volumeCheck)
+                                    {
+                                        message += "\n\n📈 Top Gainers:\n";
+                                        foreach (var gainer in topGainers)
+                                        {
+                                            message += $"- {gainer.Symbol}: %{gainer.Change}\n";
+                                            await SendTelegramMessage(message);
+                                        }
+                                    }
+  
                                 }
-
-                                await SendTelegramMessage(message);
                             }
                         }
                         else
@@ -719,6 +715,58 @@ class Program
         }
     }
 
+
+    private static async Task<decimal> CalculateRSI(string symbol, int period)
+    {
+        var candles = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, KlineInterval.OneHour, limit: period + 1);
+        if (!candles.Success) return 0;
+
+        var closePrices = candles.Data.Select(c => c.ClosePrice).ToList();
+        decimal gain = 0, loss = 0;
+
+        for (int i = 1; i < closePrices.Count; i++)
+        {
+            var change = closePrices[i] - closePrices[i - 1];
+            if (change > 0) gain += change;
+            else loss -= change;
+        }
+
+        var avgGain = gain / period;
+        var avgLoss = loss / period;
+
+        if (avgLoss == 0) return 100;
+        decimal rs = avgGain / avgLoss;
+        return 100 - (100 / (1 + rs));
+    }
+
+    // 4. Son 1 saatteki en yüksek fiyatı al
+    private static async Task<decimal> GetHighestPrice(string symbol, int hours)
+    {
+        var candles = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, KlineInterval.OneHour, limit: hours);
+        return candles.Data.Max(c => c.HighPrice);
+    }
+
+    // 5. Fiyat Geri Çekilmesi Hesaplama
+    private static async Task<decimal> GetPriceRetracement(string symbol)
+    {
+        var candles = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, KlineInterval.OneHour, limit: 2);
+        var highPrice = candles.Data.FirstOrDefault()?.HighPrice ?? 0;
+        var currentPrice = candles.Data.LastOrDefault()?.ClosePrice ?? 0;
+
+        return (highPrice - currentPrice) / highPrice * 100;
+    }
+
+    // 6. Likidite Durumu (Hacim Düşüşü)
+    private static async Task<bool> CheckVolume(string symbol)
+    {
+        var candles = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, KlineInterval.OneHour, limit: 2);
+        if (candles.Data.Count() < 2) return false;
+
+        var previousVolume = candles.Data.First().Volume;
+        var currentVolume = candles.Data.Last().Volume;
+
+        return currentVolume < previousVolume;
+    }
 }
 
 public class FundingRateRecord
