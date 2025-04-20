@@ -410,6 +410,40 @@ class Program
                                     {
                                         message += $"- {gainer.Symbol}: %{gainer.Change}\n";
                                     }
+
+                                    //osmx
+
+                                    // Son 24 saatlik 1 saatlik mum verilerini çekiyoruz
+                                    var klines = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.OneHour, limit: 24);
+
+                                    // Son 1 saatin hacmi
+                                    decimal lastVolume = klines.Data.Last().Volume;
+
+                                    // Son 23 saatin ortalama hacmi
+                                    decimal averageVolume = klines.Data.Take(23).Average(kline => kline.Volume);
+
+                                    // Hacim kontrolü
+                                    bool isVolumeDoubled = lastVolume > 2 * averageVolume;
+
+                                    // Son 5 dakikalık fiyat verisini al
+                                    var klines5Min = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.OneMinute, limit: 5);
+
+                                    decimal openPrice = klines5Min.Data.First().OpenPrice;
+                                    decimal closePrice = klines5Min.Data.Last().ClosePrice;
+                                    decimal changePercent = ((closePrice - openPrice) / openPrice) * 100;
+                                    bool isMomentumGood = changePercent > -1;
+
+                                    // Hacim
+                                    message += $"💰 *Hacim*: Son saat hacmi: `{lastVolume:N2}`, Ortalama (23 saat): `{averageVolume:N2}`\n";
+                                    message += isVolumeDoubled
+                                        ? "✅ *Hacim 2 katına çıkmış, işlem yapılabilir.*\n"
+                                        : "⚠️ *Hacim artmamış, işlem yapılmamalı.*\n";
+
+                                    // Momentum
+                                    message += $"\n📈 *Momentum (Son 5 dakika)*: %{changePercent:F2}\n";
+                                    message += isMomentumGood
+                                        ? "✅ *Momentum hala iyi, işlem yapılabilir.*\n"
+                                        : "⚠️ *Momentum zayıf.*\n";
                                 }
 
                                 await SendTelegramMessage(message);
