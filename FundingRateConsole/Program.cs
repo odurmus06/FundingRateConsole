@@ -146,7 +146,7 @@ class Program
                int pricePrecision = tickSize.ToString(CultureInfo.InvariantCulture).Split('.').Last().Length;
 
                // TP ve SL hesaplamaları
-               decimal tpPercentage = 3;  // %2
+               decimal tpPercentage = 4;  // %2
                decimal slPercentage = 6;  // %6
 
                decimal tpMultiplier = 1 + (tpPercentage / 100);
@@ -220,7 +220,7 @@ class Program
     static async Task PlaceOrderAsync(string symbol)
     {
 
-        decimal desiredLeverage = 3;
+        decimal desiredLeverage = 10;
 
         // 1. Sembol bilgilerini al
         var exchangeInfo = await client.UsdFuturesApi.ExchangeData.GetExchangeInfoAsync();
