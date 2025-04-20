@@ -215,6 +215,13 @@ class Program
                    Console.WriteLine($"[Hata] Asenkron işlemde bir hata oluştu: {ex.Message}");
                }
            }
+
+
+           if (data.Data.UpdateData.Status == OrderStatus.Filled &&
+               data.Data.UpdateData.OriginalType == FuturesOrderType.TakeProfit)
+           {
+               isOrderActive = false;
+           }
        });
 
     }
