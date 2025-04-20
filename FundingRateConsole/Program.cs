@@ -648,7 +648,7 @@ class Program
                     await SendTelegramMessage($"second geçildi  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {price} | Change: {changeText}");
                     await CheckVolumeAndMomentumWithFR(symbol);
                     TargetFundingRates.TryRemove(symbol, out _);
-                    await PlaceOrderAsync(symbol);
+                    //await PlaceOrderAsync(symbol);
                     isOrderActive = true;
                 }
             }
