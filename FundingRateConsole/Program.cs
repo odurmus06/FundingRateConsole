@@ -1,10 +1,13 @@
-﻿using Binance.Net.Clients;
+﻿using Binance.Net;
+using Binance.Net.Clients;
 using Binance.Net.Enums;
+using CryptoExchange.Net.Authentication;
 using CryptoExchange.Net.CommonObjects;
 using CryptoExchange.Net.Sockets;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Telegram.Bot;
@@ -12,8 +15,8 @@ using Telegram.Bot;
 class Program
 {
     // Binance API ve Socket Client
-    private static readonly BinanceSocketClient socketClient = new BinanceSocketClient();
-    private static readonly BinanceRestClient client = new BinanceRestClient();
+    private static BinanceRestClient client;
+    private static BinanceSocketClient socketClient;
 
     // Funding Rate Verisi ve Koleksiyonlar
     private static List<FundingRateRecord> fundingRateRecords = new List<FundingRateRecord>();
@@ -25,6 +28,10 @@ class Program
     private static readonly string botToken = "7938765330:AAFC6-bpOiffLaa8iSQwpzl0h3FR_yYT4s4";
     private static readonly string chatId = "7250151162";
 
+    //Binance Api Bilgileri
+    private static string apiKey = "77DGU2lh3Up1YytSuyOnuAAq9scplj1KwXTIvgUj969MKbLvcYhMSIBr34g3VE4U";
+    private static string apiSecret = "IjP1ZmJXcrRxnep0koHlqnbELxYagXgm295FP0wHG2Ow3QV2jQCasUAyWEmem38l";
+    private static string listenKey;
     // Hedef Değerler ve Eşikler
     private static decimal firstDestinition = -1.5m;
     private static decimal secondDestinition = -2m;
@@ -45,8 +52,253 @@ class Program
     {
         _ = SendTelegramMessage("Console Uygulaması başlatıldı.");
         Console.WriteLine("Funding Rate Bot Starting...");
+
+        client = new BinanceRestClient(options =>
+        {
+            options.ApiCredentials = new ApiCredentials(
+                apiKey,
+                apiSecret
+            );
+            options.AutoTimestamp = true;
+        });
+
+
+        socketClient = new BinanceSocketClient(options =>
+        {
+            options.ApiCredentials = new ApiCredentials(
+                apiKey,
+                apiSecret
+            );
+        });
+
+        var listenKeyResult = client.UsdFuturesApi.Account.StartUserStreamAsync();
+        listenKey = listenKeyResult.Result.Data;
+
+        _ = Task.Run(async () =>
+        {
+            while (true)
+            {
+                await Task.Delay(TimeSpan.FromMinutes(30));
+                await client.UsdFuturesApi.Account.KeepAliveUserStreamAsync(listenKey);
+            }
+        });
+
+
+
+        await updated();
         await StartSubscription();
         Console.ReadKey();
+    }
+    static async Task updated()
+    {
+        var orderSubscription = await socketClient.UsdFuturesApi.Account.SubscribeToUserDataUpdatesAsync(
+        listenKey,
+        data =>
+        {
+            Console.WriteLine("Hesap Güncellemesi Geldi!");
+        },
+          data =>
+          {
+              Console.WriteLine("Order Güncellemesi Geldi!");
+          },
+          data =>
+          {
+              Console.WriteLine("Marjin Güncellemesi Geldi!");
+          },
+       async data =>
+       {
+           Console.WriteLine("Listen Key Süresi Doldu, Yenileniyor...");
+
+           if (data.Data.UpdateData.Status == OrderStatus.Filled &&
+               data.Data.UpdateData.Side == OrderSide.Buy)
+           {
+               string symbol = data.Data.UpdateData.Symbol;
+               decimal filledPrice = data.Data.UpdateData.AveragePrice;
+               decimal quantity = data.Data.UpdateData.Quantity;
+
+               // Fiyat sıfır veya negatifse hata ver
+               if (filledPrice <= 0)
+               {
+                   Console.WriteLine("[Hata] Fiyat alınamadı veya sıfır! Fiyat: " + filledPrice);
+                   return;
+               }
+
+               // Sembol bilgilerini yeniden al
+               var exchangeInfo = await client.UsdFuturesApi.ExchangeData.GetExchangeInfoAsync();
+               var symbolInfo = exchangeInfo.Data.Symbols.FirstOrDefault(s => s.Name == symbol);
+
+               if (symbolInfo == null)
+               {
+                   Console.WriteLine("[Hata] Sembol bilgisi alınamadı!");
+                   return;
+               }
+
+               decimal tickSize = symbolInfo.PriceFilter.TickSize;
+
+               // TickSize sıfır olamaz, bunu kontrol et
+               if (tickSize == 0)
+               {
+                   Console.WriteLine("[Hata] Tick size sıfır olamaz!");
+                   return;
+               }
+
+               // Precision bilgilerini al
+               int pricePrecision = tickSize.ToString(CultureInfo.InvariantCulture).Split('.').Last().Length;
+
+               // TP ve SL hesaplamaları
+               decimal tpPercentage = 3;  // %2
+               decimal slPercentage = 6;  // %6
+
+               decimal tpMultiplier = 1 + (tpPercentage / 100);
+               decimal slMultiplier = 1 - (slPercentage / 100);
+
+               // TP ve SL fiyatlarını hesapla
+               decimal takeProfitPrice = filledPrice * tpMultiplier;
+               decimal stopLossPrice = filledPrice * slMultiplier;
+
+               // Sıfıra bölme kontrolü (gerekli işlemleri yapmadan önce)
+               if (takeProfitPrice == 0 || stopLossPrice == 0)
+               {
+                   Console.WriteLine("[Hata] TakeProfit veya StopLoss fiyatı sıfır oldu!");
+                   return;
+               }
+
+               // TickSize'ye yuvarlama
+               takeProfitPrice = Math.Floor(takeProfitPrice / tickSize) * tickSize;
+               stopLossPrice = Math.Ceiling(stopLossPrice / tickSize) * tickSize;
+
+               // Precision'a yuvarlama
+               takeProfitPrice = Math.Round(takeProfitPrice, pricePrecision);
+               stopLossPrice = Math.Round(stopLossPrice, pricePrecision);
+
+               Console.WriteLine($"[TP & SL] TP: {takeProfitPrice}, SL: {stopLossPrice}");
+
+               try
+               {
+                   // ✅ Take-Profit (TP) - Market Tipinde Tetiklenir
+                   var tpOrder = await client.UsdFuturesApi.Trading.PlaceOrderAsync(
+                       symbol: symbol,
+                       side: OrderSide.Sell,
+                       type: FuturesOrderType.TakeProfitMarket,
+                       quantity: quantity,
+                       stopPrice: takeProfitPrice,
+                       timeInForce: TimeInForce.GoodTillCanceled
+                   );
+
+                   if (!tpOrder.Success)
+                   {
+                       Console.WriteLine($"[TP Order Hatası] {tpOrder.Error?.Message}");
+                       return;
+                   }
+
+                   // ✅ Stop-Loss (SL) - Market Tipinde Tetiklenir
+                   //var slOrder = await client.UsdFuturesApi.Trading.PlaceOrderAsync(
+                   //    symbol: symbol,
+                   //    side: OrderSide.Sell,
+                   //    type: FuturesOrderType.StopMarket,
+                   //    quantity: quantity,
+                   //    stopPrice: stopLossPrice,
+                   //    timeInForce: TimeInForce.GoodTillCanceled
+                   //);
+
+                   //if (!slOrder.Success)
+                   //{
+                   //    Console.WriteLine($"[SL Order Hatası] {slOrder.Error?.Message}");
+                   //    return;
+                   //}
+
+                   Console.WriteLine("[Bilgi] TP ve SL emirleri başarıyla yerleştirildi.");
+               }
+               catch (Exception ex)
+               {
+                   Console.WriteLine($"[Hata] Asenkron işlemde bir hata oluştu: {ex.Message}");
+               }
+           }
+       });
+
+    }
+    static async Task PlaceOrderAsync(string symbol)
+    {
+       
+        decimal desiredLeverage = 3;
+
+        // 1. Sembol bilgilerini al
+        var exchangeInfo = await client.UsdFuturesApi.ExchangeData.GetExchangeInfoAsync();
+        var symbolInfo = exchangeInfo.Data.Symbols.FirstOrDefault(s => s.Name == symbol);
+
+        if (symbolInfo == null)
+        {
+            Console.WriteLine("Sembol bilgisi alınamadı.");
+            return;
+        }
+
+        // 2. Price & quantity precision
+        decimal tickSize = symbolInfo.PriceFilter.TickSize;
+        decimal lotSize = symbolInfo.LotSizeFilter.MinQuantity;
+
+        int pricePrecision = tickSize.ToString(CultureInfo.InvariantCulture).Split('.').Last().Length;
+        int quantityPrecision = lotSize.ToString(CultureInfo.InvariantCulture).Split('.').Last().Length;
+
+        if (tickSize == 0 || lotSize == 0)
+        {
+            Console.WriteLine("TickSize veya LotSize sıfır olamaz.");
+            return;
+        }
+
+        // 3. Kaldıraç ayarla
+        await client.UsdFuturesApi.Account.ChangeInitialLeverageAsync(symbol, (int)desiredLeverage);
+
+        // 4. Güncel fiyatı al ve tickSize'a göre ayarla
+        var priceResult = await client.UsdFuturesApi.ExchangeData.GetPriceAsync(symbol);
+        decimal rawPrice = priceResult.Data.Price;
+        decimal assetPrice = Math.Floor(rawPrice / tickSize) * tickSize;
+        assetPrice = Math.Round(assetPrice, pricePrecision);
+
+        // 5. USDT bakiyesini al
+        var balanceResult = await client.UsdFuturesApi.Account.GetBalancesAsync();
+        decimal usdtBalance = balanceResult.Data.FirstOrDefault(b => b.Asset == "USDT")?.AvailableBalance ?? 0;
+
+        if (usdtBalance <= 0)
+        {
+            Console.WriteLine("USDT bakiyesi yetersiz.");
+            return;
+        }
+
+        // 6. Kullanılabilir teminat ve pozisyon büyüklüğü hesapla
+        decimal usableMargin = usdtBalance * 0.99m;
+        decimal quantity = (usableMargin * desiredLeverage) / assetPrice;
+
+        // LotSize hassasiyetine göre miktarı ayarla
+        quantity = Math.Floor(quantity / lotSize) * lotSize;
+        quantity = Math.Round(quantity, quantityPrecision);
+
+        if (quantity <= 0)
+        {
+            Console.WriteLine("Geçersiz işlem miktarı.");
+            return;
+        }
+
+        Console.WriteLine($"Mevcut bakiye: {usdtBalance} USDT");
+        Console.WriteLine($"Fiyat: {assetPrice}");
+        Console.WriteLine($"İşlem miktarı: {quantity}");
+
+        // 7. Emir gönder
+        var orderResult = await client.UsdFuturesApi.Trading.PlaceOrderAsync(
+            symbol: symbol,
+            side: OrderSide.Buy,
+            type: FuturesOrderType.Limit,
+            price: assetPrice,
+            timeInForce: TimeInForce.GoodTillCanceled,
+            quantity: quantity
+        );
+
+        if (!orderResult.Success)
+        {
+            Console.WriteLine($"Market Order Hatası: {orderResult.Error?.Message}");
+            return;
+        }
+
+        Console.WriteLine($"İşlem başarıyla gerçekleşti. Emir ID: {orderResult.Data.Id}");
     }
     private static decimal CalculateFundingRateSpeed(decimal oldFundingRate, DateTime oldTimestamp, decimal newFundingRate, DateTime newTimestamp)
     {
@@ -372,7 +624,7 @@ class Program
 
                 if (fundingRatePercentage <= secondDestinition && 
                     TargetFundingRates.ContainsKey(symbol) &&
-                    //topGainers.Any(x => x.Symbol.Equals(symbol)) &&
+                    topGainers.Any(x => x.Symbol.Equals(symbol)) &&
                     isOrderActive == false
                     )
                 {
@@ -388,7 +640,8 @@ class Program
                     await SendTelegramMessage($"second geçildi  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {price} | Change: {changeText}");
                     await CheckVolumeAndMomentumWithFR(symbol);
                     TargetFundingRates.TryRemove(symbol, out _);
-
+                    await PlaceOrderAsync(symbol);
+                    isOrderActive = true;
                 }
             }
             else
