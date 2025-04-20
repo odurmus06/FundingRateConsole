@@ -546,6 +546,7 @@ class Program
     {
         return firstDestinition;
     }
+
     private static async Task CheckVolumeAndMomentumWithFR(string symbol)
     {
         try
