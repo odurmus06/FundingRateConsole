@@ -597,7 +597,22 @@ class Program
                 ? "⚠️ *Funding time çok yakın, işlem yapma.*\n"
                 : "✅ *Funding time uygun, işlem yapılabilir.*\n";
 
-            await SendTelegramMessage(message);
+
+
+            if (isMomentumGood && isVolumeDoubled && isFundingTimeNear)
+            {
+                await PlaceOrderAsync(symbol);
+                isOrderActive = true;
+                message += $"\n📈 *işleme girildi*\n";
+            }
+            else
+            {
+                message += $"\n📈 *işleme girilmedi*\n";
+            }
+
+
+                await SendTelegramMessage(message);
+
 
         }
         catch (Exception ex)
@@ -646,10 +661,8 @@ class Program
 
                     // Mesajı göndermekte kullanıyoruz:
                     await SendTelegramMessage($"second geçildi  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {price} | Change: {changeText}");
-                    await CheckVolumeAndMomentumWithFR(symbol);
                     TargetFundingRates.TryRemove(symbol, out _);
-                    //await PlaceOrderAsync(symbol);
-                    isOrderActive = true;
+                    await CheckVolumeAndMomentumWithFR(symbol);
                 }
             }
             else
