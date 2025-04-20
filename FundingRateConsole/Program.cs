@@ -182,7 +182,8 @@ class Program
                        type: FuturesOrderType.TakeProfitMarket,
                        quantity: quantity,
                        stopPrice: takeProfitPrice,
-                       timeInForce: TimeInForce.GoodTillCanceled
+                       timeInForce: TimeInForce.GoodTillCanceled,
+                       reduceOnly: true
                    );
 
                    if (!tpOrder.Success)
