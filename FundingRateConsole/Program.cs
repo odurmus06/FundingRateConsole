@@ -219,7 +219,7 @@ class Program
     }
     static async Task PlaceOrderAsync(string symbol)
     {
-       
+
         decimal desiredLeverage = 3;
 
         // 1. Sembol bilgilerini al
@@ -249,9 +249,9 @@ class Program
         await client.UsdFuturesApi.Account.ChangeInitialLeverageAsync(symbol, (int)desiredLeverage);
 
         // 4. Güncel fiyatı al ve tickSize'a göre ayarla
-        var priceResult = await client.UsdFuturesApi.ExchangeData.GetPriceAsync(symbol);
-        decimal rawPrice = priceResult.Data.Price;
-        decimal assetPrice = Math.Floor(rawPrice / tickSize) * tickSize;
+        var bookPriceResult = await client.UsdFuturesApi.ExchangeData.GetBookPriceAsync(symbol);
+        decimal filledPrice = bookPriceResult.Data.BestAskPrice;
+        decimal assetPrice = Math.Floor(filledPrice / tickSize) * tickSize;
         assetPrice = Math.Round(assetPrice, pricePrecision);
 
         // 5. USDT bakiyesini al
@@ -378,7 +378,7 @@ class Program
                         }
                     }
 
-                        if (topGainers.Any(x => x.Symbol.Equals(symbol)))
+                    if (topGainers.Any(x => x.Symbol.Equals(symbol)))
                     {
                         DateTime nextFundingTime = update.Data.NextFundingTime;
                         TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
@@ -517,7 +517,7 @@ class Program
             }
             catch (Exception ex)
             {
-                 _= SendTelegramMessage($"Ticker güncelleme hatası: {ex.Message}");
+                _ = SendTelegramMessage($"Ticker güncelleme hatası: {ex.Message}");
             }
         });
 
@@ -530,8 +530,8 @@ class Program
         }
     }
     static async Task order()
-    {   
-       //await SendTelegramMessage("dd");
+    {
+        //await SendTelegramMessage("dd");
     }
 
     private static decimal GetNegativeThreshold()
@@ -617,12 +617,12 @@ class Program
                 }
                 if (nonTargetFundingRates.ContainsKey(symbol) && TargetFundingRates.ContainsKey(symbol))
                 {
-                     
+
                     nonTargetFundingRates.TryRemove(symbol, out _);
 
                 }
 
-                if (fundingRatePercentage <= secondDestinition && 
+                if (fundingRatePercentage <= secondDestinition &&
                     TargetFundingRates.ContainsKey(symbol) &&
                     topGainers.Any(x => x.Symbol.Equals(symbol)) &&
                     isOrderActive == false
@@ -649,7 +649,7 @@ class Program
                 if (!nonTargetFundingRates.ContainsKey(symbol))
                 {
                     nonTargetFundingRates[symbol] = DateTime.Now;
-                   
+
                 }
                 else if (TargetFundingRates.ContainsKey(symbol))
                 {
