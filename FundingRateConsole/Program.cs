@@ -464,6 +464,7 @@ class Program
 
             // Hacim kontrolü
             bool isVolumeDoubled = lastVolume > (1.5m * averageVolume);
+            bool isVolumeBelowAverage = lastVolume < averageVolume;
 
             // Son 5 dakikalık fiyat verisini al
             var klines5Min = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.OneMinute, limit: 5);
@@ -520,6 +521,11 @@ class Program
             if (isVolumeDoubled) score += 2;
             if (isFundingTimeNear) score += 1;
             if (isBuyVolumeRatioBigger) score += 4;
+
+            if (isVolumeBelowAverage)
+            {
+                score -= 2; // Hacim ortalamanın altındaysa, riskleri azaltmak için puanı düşür
+            }
 
             if (score >= threshold)
             {
