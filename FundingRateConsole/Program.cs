@@ -308,26 +308,6 @@ class Program
 
         Console.WriteLine($"İşlem başarıyla gerçekleşti. Emir ID: {orderResult.Data.Id}");
     }
-    private static decimal CalculateFundingRateSpeed(decimal oldFundingRate, DateTime oldTimestamp, decimal newFundingRate, DateTime newTimestamp)
-    {
-        // Funding rate farkını hesapla
-        decimal rateDifference = Math.Abs(newFundingRate) - Math.Abs(oldFundingRate);
-
-        // Geçen süreyi dakika cinsinden hesapla
-        decimal elapsedMinutes = (decimal)(newTimestamp - oldTimestamp).TotalMinutes;
-
-        // Süre sıfır veya negatifse sıfır dön
-        if (elapsedMinutes <= 0)
-        {
-            return 0m;
-        }
-
-        // Funding rate hızını hesapla
-        decimal rateSpeed = rateDifference / elapsedMinutes;
-
-        return rateSpeed;
-    }
-
     private static async Task SendTelegramMessage(string message)
     {
         var botClient = new TelegramBotClient(botToken);
@@ -368,94 +348,7 @@ class Program
                     var dateTime = update.Data.EventTime.ToString("yyyy-MM-dd HH:mm:ss");
                     var symbol = update.Data.Symbol;
                     var markPrice = update.Data.MarkPrice;
-
-                    if (fundingRatePercentage <= secondDestinition)
-                    {
-                        if (!NegativeTwoFundingRates.ContainsKey(symbol))
-                        {
-                            NegativeTwoFundingRates[symbol] = DateTime.Now;
-                            await SendTelegramMessage($"-2 geçildi  - Symbol: {symbol}");
-                        }
-                    }
-                    else
-                    {
-                        if (NegativeTwoFundingRates.ContainsKey(symbol))
-                        {
-                            NegativeTwoFundingRates.TryRemove(symbol, out _);
-                            await SendTelegramMessage($"-2 short fırsatı - Symbol: {symbol}");
-                        }
-                    }
-
-                    if (topGainers.Any(x => x.Symbol.Equals(symbol)))
-                    {
-                        DateTime nextFundingTime = update.Data.NextFundingTime;
-                        TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
-
-                        if (timeRemaining.TotalMinutes <= 30 && update.Data.FundingRate < 0)
-                        {
-                            if (!IntervalFundingRates.ContainsKey(symbol))
-                            {
-                                // Güvenli ekleme
-                                IntervalFundingRates.TryAdd(symbol, DateTime.Now);
-
-                                string message = $"⚡ Scalp geri çekilme fırsatı\n\n" +
-                                                 $"Symbol: {symbol}\n" +
-                                                 $"Funding Rate: %{fundingRatePercentage:F4}\n" +
-                                                 $"Mark Price: {markPrice}";
-
-                                if (topGainers.Any())
-                                {
-
-
-                                    var rsi = await CalculateRSI(symbol, 14);
-                                    if (rsi >= 70)
-                                    {
-                                        Console.WriteLine("RSI 70 veya üzeri: Aşırı alım durumu.");
-                                    }
-
-                                    // 4. Tepe Noktası Hesaplama
-                                    var highestPrice = await GetHighestPrice(symbol, 1);
-                                    Console.WriteLine($"Son 1 saatte en yüksek fiyat: {highestPrice}");
-
-                                    // 5. Geri Çekilme Durumu
-                                    var retracement = await GetPriceRetracement(symbol);
-                                    if (retracement >= 0.5m && retracement <= 1m)
-                                    {
-                                        Console.WriteLine($"Fiyat %{retracement} geri çekildi.");
-                                    }
-
-                                    // 6. Likidite Durumu
-                                    var volumeCheck = await CheckVolume(symbol);
-                                    if (!volumeCheck)
-                                    {
-                                        Console.WriteLine("Hacim düşüşü veya satış baskısı artmış.");
-                                    }
-
-                                    // Tüm koşullar sağlanıyorsa short pozisyon açılabilir
-                                    if (rsi >= 70 && retracement >= 0.5m && retracement <= 1m && volumeCheck)
-                                    {
-                                        message += "\n\n📈 Top Gainers:\n";
-                                        foreach (var gainer in topGainers)
-                                        {
-                                            message += $"- {gainer.Symbol}: %{gainer.Change}\n";
-                                            await SendTelegramMessage(message);
-                                        }
-                                    }
-  
-                                }
-                            }
-                        }
-                        else
-                        {
-                            if (IntervalFundingRates.ContainsKey(symbol))
-                            {
-                                IntervalFundingRates.TryRemove(symbol, out _);
-                            }
-                        }
-                    }
-
                     var negativeThreshold = GetNegativeThreshold();
-
                     await HandleFundingRateAsync(symbol, fundingRatePercentage, dateTime, rate => fundingRatePercentage <= negativeThreshold, markPrice);
                 }
                 catch (Exception ex)
@@ -488,23 +381,6 @@ class Program
         await Task.Delay(-1); // sonsuz çalışması için
     }
 
-    private static async Task PrintTopGainersLoop()
-    {
-        while (true)
-        {
-            lock (locker)
-            {
-                Console.Clear();
-                Console.WriteLine($"Top Gainers - {DateTime.Now:HH:mm:ss}");
-                Console.WriteLine(new string('-', 30));
-
-                foreach (var (symbol, percent) in topGainers)
-                    Console.WriteLine($"{symbol,-10} | {percent,6:F2} %");
-            }
-
-            await Task.Delay(1000);
-        }
-    }
     private static async Task startTicker()
     {
         var tickerSubscriptionResult = await socketClient.UsdFuturesApi.ExchangeData.SubscribeToAllTickerUpdatesAsync(update =>
@@ -567,10 +443,6 @@ class Program
 
         }
     }
-    static async Task order()
-    {
-        //await SendTelegramMessage("dd");
-    }
 
     private static decimal GetNegativeThreshold()
     {
@@ -591,7 +463,7 @@ class Program
             decimal averageVolume = klines.Data.Take(23).Average(kline => kline.Volume);
 
             // Hacim kontrolü
-            bool isVolumeDoubled = lastVolume > 2 * averageVolume;
+            bool isVolumeDoubled = lastVolume > (1.5m * averageVolume);
 
             // Son 5 dakikalık fiyat verisini al
             var klines5Min = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.OneMinute, limit: 5);
@@ -606,6 +478,10 @@ class Program
             DateTime nextFundingTime = client.UsdFuturesApi.ExchangeData.GetMarkPriceAsync(symbol).Result.Data.NextFundingTime;
             TimeSpan timeRemaining = nextFundingTime - DateTime.Now;
             bool isFundingTimeNear = timeRemaining.TotalMinutes <= 30;
+
+            var BuyVolumeRatio = await GetBuyVolumeRatioFuturesAsync(symbol);
+
+            bool isBuyVolumeRatioBigger = BuyVolumeRatio >= 0.65m;
 
             // Mesaj oluştur
             string message = $"📊 *Long Analizi - {symbol}*\n\n";
@@ -622,6 +498,12 @@ class Program
                 ? "✅ *Momentum hala iyi, işlem yapılabilir.*\n"
                 : "⚠️ *Momentum zayıf.*\n";
 
+            // Buyer
+            message += $"\n📈 *Last 500 Trades*: %{BuyVolumeRatio:F2}\n";
+            message += isBuyVolumeRatioBigger
+                ? "✅ *Piyasada alıcılar iyi, işlem yapılabilir.*\n"
+                : "⚠️ *Piyasada alıcılar zayıf.*\n";
+
             // Funding Rate
             message += $"\n🕒 *Funding Rate Zamanı*: {nextFundingTime:HH:mm}\n";
             message += isFundingTimeNear
@@ -630,7 +512,7 @@ class Program
 
 
 
-            if (isMomentumGood && isVolumeDoubled && isFundingTimeNear)
+            if (isMomentumGood && isVolumeDoubled && isFundingTimeNear && isBuyVolumeRatioBigger)
             {
                 await PlaceOrderAsync(symbol);
                 isOrderActive = true;
@@ -650,6 +532,34 @@ class Program
         {
             Console.WriteLine("Hata oluştu: " + ex.Message);
         }
+    }
+
+    private static async Task<decimal> GetBuyVolumeRatioFuturesAsync(string symbol, int limit = 500)
+    {
+        var result = await client.UsdFuturesApi.ExchangeData.GetAggregatedTradeHistoryAsync(symbol, limit: limit);
+
+        if (!result.Success)
+        {
+            Console.WriteLine($"Futures işlem verisi alınamadı: {result.Error}");
+            return 0;
+        }
+
+        decimal buyVolume = 0;
+        decimal sellVolume = 0;
+
+        foreach (var trade in result.Data)
+        {
+            if (trade.BuyerIsMaker)
+                sellVolume += trade.Quantity;
+            else
+                buyVolume += trade.Quantity;
+        }
+
+        decimal totalVolume = buyVolume + sellVolume;
+        if (totalVolume == 0)
+            return 0;
+
+        return buyVolume / totalVolume;
     }
 
 
@@ -713,59 +623,6 @@ class Program
         {
             _ = SendTelegramMessage(ex.Message);
         }
-    }
-
-
-    private static async Task<decimal> CalculateRSI(string symbol, int period)
-    {
-        var candles = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, KlineInterval.OneHour, limit: period + 1);
-        if (!candles.Success) return 0;
-
-        var closePrices = candles.Data.Select(c => c.ClosePrice).ToList();
-        decimal gain = 0, loss = 0;
-
-        for (int i = 1; i < closePrices.Count; i++)
-        {
-            var change = closePrices[i] - closePrices[i - 1];
-            if (change > 0) gain += change;
-            else loss -= change;
-        }
-
-        var avgGain = gain / period;
-        var avgLoss = loss / period;
-
-        if (avgLoss == 0) return 100;
-        decimal rs = avgGain / avgLoss;
-        return 100 - (100 / (1 + rs));
-    }
-
-    // 4. Son 1 saatteki en yüksek fiyatı al
-    private static async Task<decimal> GetHighestPrice(string symbol, int hours)
-    {
-        var candles = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, KlineInterval.OneHour, limit: hours);
-        return candles.Data.Max(c => c.HighPrice);
-    }
-
-    // 5. Fiyat Geri Çekilmesi Hesaplama
-    private static async Task<decimal> GetPriceRetracement(string symbol)
-    {
-        var candles = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, KlineInterval.OneHour, limit: 2);
-        var highPrice = candles.Data.FirstOrDefault()?.HighPrice ?? 0;
-        var currentPrice = candles.Data.LastOrDefault()?.ClosePrice ?? 0;
-
-        return (highPrice - currentPrice) / highPrice * 100;
-    }
-
-    // 6. Likidite Durumu (Hacim Düşüşü)
-    private static async Task<bool> CheckVolume(string symbol)
-    {
-        var candles = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, KlineInterval.OneHour, limit: 2);
-        if (candles.Data.Count() < 2) return false;
-
-        var previousVolume = candles.Data.First().Volume;
-        var currentVolume = candles.Data.Last().Volume;
-
-        return currentVolume < previousVolume;
     }
 }
 
