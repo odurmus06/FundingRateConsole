@@ -512,19 +512,25 @@ class Program
 
 
 
-            if (isMomentumGood && isVolumeDoubled && isFundingTimeNear && isBuyVolumeRatioBigger)
+            int score = 0;
+            int threshold = 7;
+
+            // Ağırlıklı puanlama
+            if (isMomentumGood) score += 3;
+            if (isVolumeDoubled) score += 2;
+            if (isFundingTimeNear) score += 1;
+            if (isBuyVolumeRatioBigger) score += 4;
+
+            if (score >= threshold)
             {
                 await PlaceOrderAsync(symbol);
                 isOrderActive = true;
-                message += $"\n📈 *işleme girildi*\n";
+                message += $"\n📈 *işleme girildi (puan: {score})*\n";
             }
             else
             {
-                message += $"\n📈 *işleme girilmedi*\n";
+                message += $"\n📉 *işleme girilmedi (puan: {score})*\n";
             }
-
-
-                await SendTelegramMessage(message);
 
 
         }
