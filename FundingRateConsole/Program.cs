@@ -349,6 +349,45 @@ class Program
                     var symbol = update.Data.Symbol;
                     var markPrice = update.Data.MarkPrice;
                     var negativeThreshold = GetNegativeThreshold();
+
+                    if (topGainers.Any(x => x.Symbol.Equals(symbol)))
+                    {
+                        DateTime nextFundingTime = update.Data.NextFundingTime;
+                        TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
+
+                        if (timeRemaining.TotalMinutes <= 10 &&
+                            fundingRatePercentage >= 0.0050m)
+                        {
+                            if (!IntervalFundingRates.ContainsKey(symbol))
+                            {
+                                IntervalFundingRates[symbol] = DateTime.Now;
+
+                                string message = $"Scalp geri çekilme fırsatı  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {update.Data.MarkPrice}";
+
+                                message += "\n\nTop Gainers:\n";
+                                foreach (var gainer in topGainers)
+                                {
+                                    message += $"- {gainer.Symbol}: %{gainer.Change}\n";
+                                }
+
+                                await SendTelegramMessage(message);
+                            }
+
+                        }
+                        else
+                        {
+                            if (IntervalFundingRates.ContainsKey(symbol))
+                            {
+                                IntervalFundingRates.TryRemove(symbol, out _);
+                            }
+                        }
+                    }
+
+
+
+
+
+
                     await HandleFundingRateAsync(symbol, fundingRatePercentage, dateTime, rate => fundingRatePercentage <= negativeThreshold, markPrice);
                 }
                 catch (Exception ex)
@@ -477,8 +516,8 @@ class Program
             // Funding rate kontrolü
 
             DateTime nextFundingTime = client.UsdFuturesApi.ExchangeData.GetMarkPriceAsync(symbol).Result.Data.NextFundingTime;
-            TimeSpan timeRemaining = nextFundingTime - DateTime.Now;
-            bool isFundingTimeNear = timeRemaining.TotalMinutes <= 30;
+            TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
+            bool isFundingTimeNear = timeRemaining.TotalMinutes >= 30;
 
             var BuyVolumeRatio = await GetBuyVolumeRatioFuturesAsync(symbol);
 
@@ -506,7 +545,7 @@ class Program
                 : "⚠️ *Piyasada alıcılar zayıf.*\n";
 
             // Funding Rate
-            message += $"\n🕒 *Funding Rate Zamanı*: {nextFundingTime:HH:mm}\n";
+            message += $"\n🕒 *Funding Rate Zamanı*: {timeRemaining.Hours} saat {timeRemaining.Minutes} dakika\n";
             message += isFundingTimeNear
                 ? "⚠️ *Funding time çok yakın, işlem yapma.*\n"
                 : "✅ *Funding time uygun, işlem yapılabilir.*\n";
@@ -524,7 +563,7 @@ class Program
 
             if (isVolumeBelowAverage)
             {
-                score -= 2; // Hacim ortalamanın altındaysa, riskleri azaltmak için puanı düşür
+                score -= 2;
             }
 
             if (score >= threshold)
