@@ -33,7 +33,7 @@ class Program
     private static string apiSecret = "IjP1ZmJXcrRxnep0koHlqnbELxYagXgm295FP0wHG2Ow3QV2jQCasUAyWEmem38l";
     private static string listenKey;
     // Hedef Değerler ve Eşikler
-    private static decimal firstDestinition = -2m;
+    private static decimal firstDestinition = -1.5m;
     private static decimal secondDestinition = -2m;
     private static decimal speedTrashold = 1;
 
@@ -577,11 +577,14 @@ class Program
                 message += $"\n📉 *işleme girilmedi (puan: {score})*\n";
             }
 
+            _ = SendTelegramMessage(message);
 
         }
         catch (Exception ex)
         {
             Console.WriteLine("Hata oluştu: " + ex.Message);
+            _ = SendTelegramMessage(ex.Message);
+
         }
     }
 
