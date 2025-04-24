@@ -505,22 +505,27 @@ class Program
             bool isVolumeDoubled = lastVolume > (1.5m * averageVolume);
             bool isVolumeBelowAverage = lastVolume < averageVolume;
 
+            // Ekstra: Son hacim önceki saatten büyük mü? Mum yeşil mi?
+            var previousCandle = klines.Data.ElementAt(klines.Data.Count() - 2);
+            var lastCandle = klines.Data.Last();
+
+            bool isVolumeIncreasing = lastCandle.Volume > previousCandle.Volume;
+            bool isGreenCandle = lastCandle.ClosePrice > lastCandle.OpenPrice;
+
             // Son 5 dakikalık fiyat verisini al
             var klines5Min = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.OneMinute, limit: 5);
 
             decimal openPrice = klines5Min.Data.First().OpenPrice;
             decimal closePrice = klines5Min.Data.Last().ClosePrice;
             decimal changePercent = ((closePrice - openPrice) / openPrice) * 100;
-            bool isMomentumGood = changePercent > -1;
+            bool isMomentumGood = changePercent >= 1;
 
             // Funding rate kontrolü
-
             DateTime nextFundingTime = client.UsdFuturesApi.ExchangeData.GetMarkPriceAsync(symbol).Result.Data.NextFundingTime;
             TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
             bool isFundingTimeNear = timeRemaining.TotalMinutes >= 30;
 
             var BuyVolumeRatio = await GetBuyVolumeRatioFuturesAsync(symbol);
-
             bool isBuyVolumeRatioBigger = BuyVolumeRatio >= 0.65m;
 
             // Mesaj oluştur
@@ -550,8 +555,16 @@ class Program
                 ? "⚠️ *Funding time çok yakın, işlem yapma.*\n"
                 : "✅ *Funding time uygun, işlem yapılabilir.*\n";
 
+            // Yeni hacim + mum kontrolleri
+            message += isVolumeIncreasing
+                ? "\n✅ *Hacim artıyor.*"
+                : "\n⚠️ *Hacim düşüyor.*";
 
+            message += isGreenCandle
+                ? "\n✅ *Mum yeşil.*\n"
+                : "\n⚠️ *Mum kırmızı.*\n";
 
+            // Puanlama sistemi
             int score = 0;
             int threshold = 7;
 
@@ -559,22 +572,21 @@ class Program
             if (isMomentumGood) score += 3;
             if (isVolumeDoubled) score += 2;
             if (isFundingTimeNear) score += 1;
-            if (isBuyVolumeRatioBigger) score += 4;
+            if (isBuyVolumeRatioBigger) score += 3;
+            if (isVolumeIncreasing) score += 1;
+            if (isGreenCandle) score += 1;
 
-            if (isVolumeBelowAverage)
-            {
-                score -= 2;
-            }
+            if (isVolumeBelowAverage) score -= 2;
 
             if (score >= threshold)
             {
                 await PlaceOrderAsync(symbol);
                 isOrderActive = true;
-                message += $"\n📈 *işleme girildi (puan: {score})*\n";
+                message += $"\n📈 *İşleme girildi (puan: {score})*\n";
             }
             else
             {
-                message += $"\n📉 *işleme girilmedi (puan: {score})*\n";
+                message += $"\n📉 *İşleme girilmedi (puan: {score})*\n";
             }
 
             _ = SendTelegramMessage(message);
