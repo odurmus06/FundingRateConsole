@@ -552,8 +552,9 @@ class Program
             // Funding Rate
             message += $"\n🕒 *Funding Rate Zamanı*: {timeRemaining.Hours} saat {timeRemaining.Minutes} dakika\n";
             message += isFundingTimeNear
-                ? "⚠️ *Funding time çok yakın, işlem yapma.*\n"
-                : "✅ *Funding time uygun, işlem yapılabilir.*\n";
+                ? "✅ *Funding time uygun, işlem yapılabilir.*\n"
+                : "⚠️ *Funding time çok yakın, işlem yapma.*\n";
+
 
             // Yeni hacim + mum kontrolleri
             message += isVolumeIncreasing
@@ -566,17 +567,16 @@ class Program
 
             // Puanlama sistemi
             int score = 0;
-            int threshold = 7;
+            int threshold = 9;
 
             // Ağırlıklı puanlama
             if (isMomentumGood) score += 3;
             if (isVolumeDoubled) score += 2;
             if (isFundingTimeNear) score += 1;
             if (isBuyVolumeRatioBigger) score += 3;
-            if (isVolumeIncreasing) score += 1;
-            if (isGreenCandle) score += 1;
+            if (isVolumeIncreasing && isGreenCandle) score += 3;
 
-            if (isVolumeBelowAverage) score -= 2;
+            if(!isVolumeIncreasing || !isGreenCandle) score -= 2;
 
             if (score >= threshold)
             {
