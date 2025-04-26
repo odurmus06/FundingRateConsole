@@ -510,6 +510,12 @@ class Program
             var BuyVolumeRatio = await GetBuyVolumeRatioFuturesAsync(symbol);
             bool isBuyVolumeRatioBigger = BuyVolumeRatio >= 0.55m;
 
+            var oiHistory = await client.UsdFuturesApi.ExchangeData.GetOpenInterestHistoryAsync(symbol, Binance.Net.Enums.PeriodInterval.OneHour, limit: 2);
+
+            decimal currentOI = oiHistory.Data.Last().SumOpenInterest;
+            decimal previousOI = oiHistory.Data.First().SumOpenInterest;
+            decimal oiChangePercent = (currentOI - previousOI) / previousOI * 100;
+            bool isOIIncreasing = oiChangePercent >= 10;
             // Mesaj oluştur
             string message = $"📊 *Long Analizi - {symbol}*\n\n";
 
@@ -530,6 +536,12 @@ class Program
             message += isBuyVolumeRatioBigger
                 ? "✅ *Piyasada alıcılar iyi, işlem yapılabilir.*\n"
                 : "⚠️ *Piyasada alıcılar zayıf.*\n";
+
+            // Buyer
+            message += $"\n📈 *Open Interest Değişimi*: %{oiChangePercent:F2}\n";
+            message += isOIIncreasing
+                ? "✅ *Open Interest %10 artmış, işlem yapılabilir.*\n"
+                : "⚠️ *Open Interest artışı zayıf.*\n";
 
             // Funding Rate
             message += $"\n🕒 *Funding Rate Zamanı*: {timeRemaining.Hours} saat {timeRemaining.Minutes} dakika\n";
