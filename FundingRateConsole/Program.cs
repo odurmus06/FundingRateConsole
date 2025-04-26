@@ -3,6 +3,7 @@ using Binance.Net.Clients;
 using Binance.Net.Enums;
 using CryptoExchange.Net.Authentication;
 using CryptoExchange.Net.CommonObjects;
+using CryptoExchange.Net.Interfaces;
 using CryptoExchange.Net.Sockets;
 using System;
 using System.Collections.Concurrent;
@@ -494,31 +495,16 @@ class Program
         {
             // Son 24 saatlik 1 saatlik mum verilerini çekiyoruz
             var klines = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.OneHour, limit: 24);
-
             // Son 1 saatin hacmi
             decimal lastVolume = klines.Data.Last().Volume;
-
             // Son 23 saatin ortalama hacmi
             decimal averageVolume = klines.Data.Take(23).Average(kline => kline.Volume);
-
             // Hacim kontrolü
             bool isVolumeDoubled = lastVolume > (1.5m * averageVolume);
             bool isVolumeBelowAverage = lastVolume < averageVolume;
 
-            // Ekstra: Son hacim önceki saatten büyük mü? Mum yeşil mi?
-            var previousCandle = klines.Data.ElementAt(klines.Data.Count() - 2);
-            var lastCandle = klines.Data.Last();
-
-            bool isVolumeIncreasing = lastCandle.Volume > previousCandle.Volume;
-            bool isGreenCandle = lastCandle.ClosePrice > lastCandle.OpenPrice;
-
-            // Son 5 dakikalık fiyat verisini al
-            var klines5Min = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.OneMinute, limit: 5);
-
-            decimal openPrice = klines5Min.Data.First().OpenPrice;
-            decimal closePrice = klines5Min.Data.Last().ClosePrice;
-            decimal changePercent = ((closePrice - openPrice) / openPrice) * 100;
-            bool isMomentumGood = changePercent >= 1;
+            var last4Candles = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.FiveMinutes, limit: 5);
+            bool isStrongUptrend = last4Candles.Data.All(c => c.ClosePrice > c.OpenPrice);
 
             // Funding rate kontrolü
             DateTime nextFundingTime = client.UsdFuturesApi.ExchangeData.GetMarkPriceAsync(symbol).Result.Data.NextFundingTime;
@@ -526,7 +512,7 @@ class Program
             bool isFundingTimeNear = timeRemaining.TotalMinutes >= 30;
 
             var BuyVolumeRatio = await GetBuyVolumeRatioFuturesAsync(symbol);
-            bool isBuyVolumeRatioBigger = BuyVolumeRatio >= 0.65m;
+            bool isBuyVolumeRatioBigger = BuyVolumeRatio >= 0.55m;
 
             // Mesaj oluştur
             string message = $"📊 *Long Analizi - {symbol}*\n\n";
@@ -538,8 +524,8 @@ class Program
                 : "⚠️ *Hacim artmamış, işlem yapılmamalı.*\n";
 
             // Momentum
-            message += $"\n📈 *Momentum (Son 5 dakika)*: %{changePercent:F2}\n";
-            message += isMomentumGood
+            message += $"\n📈 *Momentum (Son 5 dakika)*\n";
+            message += isStrongUptrend
                 ? "✅ *Momentum hala iyi, işlem yapılabilir.*\n"
                 : "⚠️ *Momentum zayıf.*\n";
 
@@ -556,37 +542,17 @@ class Program
                 : "⚠️ *Funding time çok yakın, işlem yapma.*\n";
 
 
-            // Yeni hacim + mum kontrolleri
-            message += isVolumeIncreasing
-                ? "\n✅ *Hacim artıyor.*"
-                : "\n⚠️ *Hacim düşüyor.*";
 
-            message += isGreenCandle
-                ? "\n✅ *Mum yeşil.*\n"
-                : "\n⚠️ *Mum kırmızı.*\n";
 
-            // Puanlama sistemi
-            int score = 0;
-            int threshold = 9;
-
-            // Ağırlıklı puanlama
-            if (isMomentumGood) score += 3;
-            if (isVolumeDoubled) score += 2;
-            if (isFundingTimeNear) score += 1;
-            if (isBuyVolumeRatioBigger) score += 3;
-            if (isVolumeIncreasing && isGreenCandle) score += 3;
-
-            if(!isVolumeIncreasing || !isGreenCandle) score -= 2;
-
-            if (score >= threshold)
+            if (isBuyVolumeRatioBigger && isStrongUptrend)
             {
                 await PlaceOrderAsync(symbol);
                 isOrderActive = true;
-                message += $"\n📈 *İşleme girildi (puan: {score})*\n";
+                message += $"\n📈 *İşleme girildi* \n";
             }
             else
             {
-                message += $"\n📉 *İşleme girilmedi (puan: {score})*\n";
+                message += $"\n📉 *İşleme girilmedi* \n";
             }
 
             _ = SendTelegramMessage(message);
