@@ -366,10 +366,13 @@ class Program
                                 string message = $"Scalp geri çekilme fırsatı  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {update.Data.MarkPrice}";
 
                                 message += "\n\nTop Gainers:\n";
-                                var safeTopGainers = topGainers.ToList();
-                                foreach (var gainer in safeTopGainers)
+                                lock (locker)
                                 {
-                                    message += $"- {gainer.Symbol}: %{gainer.Change}\n";
+                                    var safeTopGainers = topGainers.ToList();
+                                    foreach (var gainer in safeTopGainers)
+                                    {
+                                        message += $"- {gainer.Symbol}: %{gainer.Change}\n";
+                                    }
                                 }
 
                                 await SendTelegramMessage(message);
