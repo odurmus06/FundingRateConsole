@@ -416,7 +416,6 @@ class Program
                 };
             }
         }
-
         await Task.Delay(-1); // sonsuz çalışması için
     }
 
