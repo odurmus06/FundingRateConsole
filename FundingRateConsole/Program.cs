@@ -20,9 +20,8 @@ class Program
     private static BinanceSocketClient socketClient;
 
     // Funding Rate Verisi ve Koleksiyonlar
-    private static List<FundingRateRecord> fundingRateRecords = new List<FundingRateRecord>();
-    private static ConcurrentDictionary<string, DateTime> nonTargetFundingRates = new();
-    private static ConcurrentDictionary<string, DateTime> TargetFundingRates = new();
+    private static ConcurrentDictionary<string, FundingRateRecord> nonTargetFundingRates = new();
+    private static ConcurrentDictionary<string, FundingRateRecord> TargetFundingRates = new();
     private static ConcurrentDictionary<string, DateTime> IntervalFundingRates = new();
     private static ConcurrentDictionary<string, DateTime> NegativeTwoFundingRates = new();
     // Telegram Bot Bilgileri
@@ -487,7 +486,7 @@ class Program
         return firstDestinition;
     }
 
-    private static async Task CheckVolumeAndMomentumWithFR(string symbol)
+    private static async Task CheckVolumeAndMomentumWithFR(string symbol, decimal currentPrice, decimal prevPrice, DateTime prevDate)
     {
         try
         {
@@ -518,6 +517,14 @@ class Program
             decimal previousOI = oiHistory.Data.First().SumOpenInterest;
             decimal oiChangePercent = (currentOI - previousOI) / previousOI * 100;
             bool isOIIncreasing = oiChangePercent >= 10;
+
+
+
+            decimal changePercent = ((currentPrice - prevPrice) / prevPrice) * 100;
+            bool isPriceChangeBigger = changePercent >= 10;
+
+
+
             // Mesaj oluştur
             string message = $"📊 *Long Analizi - {symbol}*\n\n";
 
@@ -526,6 +533,11 @@ class Program
             message += isVolumeDoubled
                 ? "✅ *Hacim 2 katına çıkmış, işlem yapılabilir.*\n"
                 : "⚠️ *Hacim artmamış, işlem yapılmamalı.*\n";
+
+            message += $"💰 *Fiyat Değişimi*: Önceki fiyat: `{prevPrice:N4}`, Şu anki fiyat: `{currentPrice:N4}`, Değişim: `{changePercent:N2}%`\n";
+            message += isPriceChangeBigger
+                ? $"✅ *Fiyat %{changePercent}'dan fazla artmış, güçlü hareket olabilir.*\n"
+                : $"⚠️ *Fiyat artışı %{changePercent}'dan az, dikkatli olunmalı.*\n";
 
             // Momentum
             message += $"\n📈 *Momentum (Son 5 dakika)*\n";
@@ -554,7 +566,7 @@ class Program
 
 
 
-            if (isBuyVolumeRatioBigger && isStrongUptrend)
+            if (isBuyVolumeRatioBigger && isStrongUptrend && isPriceChangeBigger)
             {
                 await PlaceOrderAsync(symbol);
                 isOrderActive = true;
@@ -615,7 +627,7 @@ class Program
             {
                 if (nonTargetFundingRates.ContainsKey(symbol))
                 {
-                    TargetFundingRates[symbol] = DateTime.Now;
+                    TargetFundingRates[symbol] = new FundingRateRecord { Timestamp = DateTime.UtcNow, Price = price };
                     nonTargetFundingRates.TryRemove(symbol, out _);
 
                     await SendTelegramMessage($"firstDestinition geçildi  - Symbol: {symbol}");
@@ -644,15 +656,15 @@ class Program
 
                     // Mesajı göndermekte kullanıyoruz:
                     await SendTelegramMessage($"second geçildi  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {price} | Change: {changeText}");
+                    await CheckVolumeAndMomentumWithFR(symbol,  price, TargetFundingRates[symbol].Price, TargetFundingRates[symbol].Timestamp);
                     TargetFundingRates.TryRemove(symbol, out _);
-                    await CheckVolumeAndMomentumWithFR(symbol);
                 }
             }
             else
             {
                 if (!nonTargetFundingRates.ContainsKey(symbol))
                 {
-                    nonTargetFundingRates[symbol] = DateTime.Now;
+                    nonTargetFundingRates[symbol] = new FundingRateRecord();
 
                 }
                 else if (TargetFundingRates.ContainsKey(symbol))
@@ -671,7 +683,5 @@ class Program
 public class FundingRateRecord
 {
     public DateTime Timestamp { get; set; }
-    public decimal FundingRate { get; set; }
     public decimal Price { get; set; }
-    public required string Symbol { get; set; }
 }
