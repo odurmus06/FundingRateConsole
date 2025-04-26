@@ -366,7 +366,8 @@ class Program
                                 string message = $"Scalp geri çekilme fırsatı  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {update.Data.MarkPrice}";
 
                                 message += "\n\nTop Gainers:\n";
-                                foreach (var gainer in topGainers)
+                                var safeTopGainers = topGainers.ToList();
+                                foreach (var gainer in safeTopGainers)
                                 {
                                     message += $"- {gainer.Symbol}: %{gainer.Change}\n";
                                 }
@@ -383,11 +384,6 @@ class Program
                             }
                         }
                     }
-
-
-
-
-
 
                     await HandleFundingRateAsync(symbol, fundingRatePercentage, dateTime, rate => fundingRatePercentage <= negativeThreshold, markPrice);
                 }
