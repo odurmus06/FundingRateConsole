@@ -12,6 +12,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Telegram.Bot;
+using Telegram.Bot.Types;
 
 class Program
 {
@@ -642,7 +643,7 @@ class Program
 
                 if (fundingRatePercentage <= secondDestinition &&
                     TargetFundingRates.ContainsKey(symbol) &&
-                    topGainers.Any(x => x.Symbol.Equals(symbol)) &&
+                    //topGainers.Any(x => x.Symbol.Equals(symbol)) &&
                     isOrderActive == false
                     )
                 {
@@ -656,7 +657,12 @@ class Program
 
                     // Mesajı göndermekte kullanıyoruz:
                     await SendTelegramMessage($"second geçildi  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {price} | Change: {changeText}");
-                    await CheckVolumeAndMomentumWithFR(symbol,  price, TargetFundingRates[symbol].Price, TargetFundingRates[symbol].Timestamp);
+
+                    //await CheckVolumeAndMomentumWithFR(symbol,  price, TargetFundingRates[symbol].Price, TargetFundingRates[symbol].Timestamp);
+                    await PlaceOrderAsync(symbol);
+                    await SendTelegramMessage($"\n📈 *İşleme girildi* \n");
+
+                    isOrderActive = true;
                     TargetFundingRates.TryRemove(symbol, out _);
                 }
             }
