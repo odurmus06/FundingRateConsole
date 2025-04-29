@@ -228,8 +228,7 @@ class Program
     }
     static async Task PlaceOrderAsync(string symbol)
     {
-
-        decimal desiredLeverage = 10;
+        decimal desiredLeverage = 3;
 
         // 1. Sembol bilgilerini al
         var exchangeInfo = await client.UsdFuturesApi.ExchangeData.GetExchangeInfoAsync();
@@ -238,6 +237,7 @@ class Program
         if (symbolInfo == null)
         {
             Console.WriteLine("Sembol bilgisi alınamadı.");
+            isOrderActive = false;
             return;
         }
 
@@ -251,6 +251,8 @@ class Program
         if (tickSize == 0 || lotSize == 0)
         {
             Console.WriteLine("TickSize veya LotSize sıfır olamaz.");
+            isOrderActive = false;
+
             return;
         }
 
@@ -270,6 +272,7 @@ class Program
         if (usdtBalance <= 0)
         {
             Console.WriteLine("USDT bakiyesi yetersiz.");
+            isOrderActive = false;
             return;
         }
 
@@ -284,6 +287,8 @@ class Program
         if (quantity <= 0)
         {
             Console.WriteLine("Geçersiz işlem miktarı.");
+            isOrderActive = false;
+
             return;
         }
 
@@ -304,6 +309,8 @@ class Program
         if (!orderResult.Success)
         {
             Console.WriteLine($"Market Order Hatası: {orderResult.Error?.Message}");
+            isOrderActive = false;
+
             return;
         }
 
@@ -498,8 +505,10 @@ class Program
             // Son 23 saatin ortalama hacmi
             decimal averageVolume = klines.Data.Take(23).Average(kline => kline.Volume);
             // Hacim kontrolü
-            bool isVolumeDoubled = lastVolume > (1.5m * averageVolume);
+            bool isVolumeDoubled = lastVolume > (1.8m * averageVolume);
             bool isVolumeBelowAverage = lastVolume < averageVolume;
+
+            ////////////////////////////////////////////////////////////////7
 
             var last4Candles = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.FiveMinutes, limit: 5);
             bool isStrongUptrend = last4Candles.Data.All(c => c.ClosePrice > c.OpenPrice);
@@ -510,7 +519,7 @@ class Program
             bool isFundingTimeNear = timeRemaining.TotalMinutes >= 30;
 
             var BuyVolumeRatio = await GetBuyVolumeRatioFuturesAsync(symbol);
-            bool isBuyVolumeRatioBigger = BuyVolumeRatio >= 0.55m;
+            bool isBuyVolumeRatioBigger = BuyVolumeRatio >= 0.65m;
 
             var oiHistory = await client.UsdFuturesApi.ExchangeData.GetOpenInterestHistoryAsync(symbol, Binance.Net.Enums.PeriodInterval.OneHour, limit: 2);
 
@@ -522,7 +531,7 @@ class Program
 
 
             decimal changePercent = ((currentPrice - prevPrice) / prevPrice) * 100;
-            bool isPriceChangeBigger = changePercent >= 10;
+            bool isPriceChangeBigger = changePercent >= 5;
 
 
 
@@ -569,8 +578,8 @@ class Program
 
             if (isBuyVolumeRatioBigger && isStrongUptrend && isPriceChangeBigger)
             {
-                await PlaceOrderAsync(symbol);
                 isOrderActive = true;
+                await PlaceOrderAsync(symbol);
                 message += $"\n📈 *İşleme girildi* \n";
             }
             else
@@ -657,13 +666,10 @@ class Program
 
                     // Mesajı göndermekte kullanıyoruz:
                     await SendTelegramMessage($"second geçildi  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {price} | Change: {changeText}");
-
-                    //await CheckVolumeAndMomentumWithFR(symbol,  price, TargetFundingRates[symbol].Price, TargetFundingRates[symbol].Timestamp);
-                    await PlaceOrderAsync(symbol);
-                    await SendTelegramMessage($"\n📈 *İşleme girildi* \n");
-
-                    isOrderActive = true;
                     TargetFundingRates.TryRemove(symbol, out _);
+
+                    await CheckVolumeAndMomentumWithFR(symbol,  price, TargetFundingRates[symbol].Price, TargetFundingRates[symbol].Timestamp);
+                    await SendTelegramMessage($"\n📈 *İşleme girildi* \n");
                 }
             }
             else
