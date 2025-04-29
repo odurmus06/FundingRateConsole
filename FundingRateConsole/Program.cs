@@ -360,37 +360,23 @@ class Program
 
                     if (topGainers.Any(x => x.Symbol.Equals(symbol)))
                     {
-                        DateTime nextFundingTime = update.Data.NextFundingTime;
-                        TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
 
-                        if (timeRemaining.TotalMinutes <= 10 &&
-                            fundingRatePercentage >= 0.0050m)
+                        if (fundingRatePercentage == 0.0050m)
                         {
                             if (!IntervalFundingRates.ContainsKey(symbol))
                             {
                                 IntervalFundingRates[symbol] = DateTime.Now;
-
-                                string message = $"Scalp geri çekilme fırsatı  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {update.Data.MarkPrice}";
-
-                                message += "\n\nTop Gainers:\n";
-                                lock (locker)
-                                {
-                                    var safeTopGainers = topGainers.ToList();
-                                    foreach (var gainer in safeTopGainers)
-                                    {
-                                        message += $"- {gainer.Symbol}: %{gainer.Change}\n";
-                                    }
-                                }
-
-                                await SendTelegramMessage(message);
                             }
 
                         }
-                        else
+                        else if(fundingRatePercentage >= 0 && fundingRatePercentage < 0.0050m)
                         {
                             if (IntervalFundingRates.ContainsKey(symbol))
                             {
                                 IntervalFundingRates.TryRemove(symbol, out _);
+
+                                await SendTelegramMessage($" Short Fırsatı: {symbol}");
+
                             }
                         }
                     }
