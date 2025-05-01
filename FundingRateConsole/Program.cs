@@ -109,6 +109,8 @@ class Program
             return;
         }
 
+        Console.WriteLine("Symbol Count: " + ilkCekim.Data.Symbols.Count());
+
         foreach (var s in ilkCekim.Data.Symbols)
             bilinenSemboller.Add(s.Name);
 
