@@ -4,12 +4,14 @@ using Binance.Net.Enums;
 using CryptoExchange.Net.Authentication;
 using CryptoExchange.Net.CommonObjects;
 using CryptoExchange.Net.Interfaces;
+using CryptoExchange.Net.Interfaces.CommonClients;
 using CryptoExchange.Net.Sockets;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -19,12 +21,16 @@ class Program
     // Binance API ve Socket Client
     private static BinanceRestClient client;
     private static BinanceSocketClient socketClient;
+    private static BinanceRestClient NewListedClient;
+
 
     // Funding Rate Verisi ve Koleksiyonlar
     private static ConcurrentDictionary<string, FundingRateRecord> nonTargetFundingRates = new();
     private static ConcurrentDictionary<string, FundingRateRecord> TargetFundingRates = new();
     private static ConcurrentDictionary<string, DateTime> IntervalFundingRates = new();
     private static ConcurrentDictionary<string, DateTime> NegativeTwoFundingRates = new();
+    private static string symbolFile = "symbols.json";
+    private static List<string> knownSymbols = new();
     // Telegram Bot Bilgileri
     private static readonly string botToken = "7938765330:AAFC6-bpOiffLaa8iSQwpzl0h3FR_yYT4s4";
     private static readonly string chatId = "7250151162";
@@ -34,8 +40,8 @@ class Program
     private static string apiSecret = "IjP1ZmJXcrRxnep0koHlqnbELxYagXgm295FP0wHG2Ow3QV2jQCasUAyWEmem38l";
     private static string listenKey;
     // Hedef Değerler ve Eşikler
-    private static decimal firstDestinition = -1.5m;
-    private static decimal secondDestinition = -2m;
+    private static decimal firstDestinition = -0.5m;
+    private static decimal secondDestinition = -0.7m;
     private static decimal speedTrashold = 1;
 
     // Top Gainers
@@ -63,6 +69,8 @@ class Program
             options.AutoTimestamp = true;
         });
 
+        NewListedClient = new BinanceRestClient();
+
 
         socketClient = new BinanceSocketClient(options =>
         {
@@ -83,6 +91,23 @@ class Program
                 await client.UsdFuturesApi.Account.KeepAliveUserStreamAsync(listenKey);
             }
         });
+
+
+        if (System.IO.File.Exists(symbolFile))
+        {
+            knownSymbols = JsonSerializer.Deserialize<List<string>>(System.IO.File.ReadAllText(symbolFile)) ?? new List<string>();
+        }
+        else
+        {
+            var symbols = (await client.SpotApi.ExchangeData.GetBookPricesAsync())
+            .Data
+            .Select(x => x.Symbol)
+            .ToList();
+            knownSymbols = symbols;
+            System.IO.File.WriteAllText(symbolFile, JsonSerializer.Serialize(knownSymbols));
+        }
+
+
 
 
 
@@ -147,7 +172,7 @@ class Program
                int pricePrecision = tickSize.ToString(CultureInfo.InvariantCulture).Split('.').Last().Length;
 
                // TP ve SL hesaplamaları
-               decimal tpPercentage = 4;  // %2
+               decimal tpPercentage = 3;  // %2
                decimal slPercentage = 6;  // %6
 
                decimal tpMultiplier = 1 + (tpPercentage / 100);
@@ -228,7 +253,7 @@ class Program
     }
     static async Task PlaceOrderAsync(string symbol)
     {
-        decimal desiredLeverage = 3;
+        decimal desiredLeverage = 10;
 
         // 1. Sembol bilgilerini al
         var exchangeInfo = await client.UsdFuturesApi.ExchangeData.GetExchangeInfoAsync();
@@ -496,7 +521,7 @@ class Program
 
             ////////////////////////////////////////////////////////////////7
 
-            var last4Candles = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.FiveMinutes, limit: 5);
+            var last4Candles = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.OneHour, limit: 4);
             bool isStrongUptrend = last4Candles.Data.All(c => c.ClosePrice > c.OpenPrice);
 
             // Funding rate kontrolü
@@ -562,7 +587,7 @@ class Program
 
 
 
-            if (isBuyVolumeRatioBigger && isStrongUptrend && isPriceChangeBigger)
+            if (isStrongUptrend)
             {
                 isOrderActive = true;
                 await PlaceOrderAsync(symbol);
