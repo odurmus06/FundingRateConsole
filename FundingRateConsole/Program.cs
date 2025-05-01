@@ -91,29 +91,55 @@ class Program
                 await client.UsdFuturesApi.Account.KeepAliveUserStreamAsync(listenKey);
             }
         });
-
-
-        if (System.IO.File.Exists(symbolFile))
-        {
-            knownSymbols = JsonSerializer.Deserialize<List<string>>(System.IO.File.ReadAllText(symbolFile)) ?? new List<string>();
-        }
-        else
-        {
-            var symbols = (await client.SpotApi.ExchangeData.GetBookPricesAsync())
-            .Data
-            .Select(x => x.Symbol)
-            .ToList();
-            knownSymbols = symbols;
-            System.IO.File.WriteAllText(symbolFile, JsonSerializer.Serialize(knownSymbols));
-        }
-
-
-
-
-
         await updated();
         await StartSubscription();
+        await ListenForNewCoins();
         Console.ReadKey();
+    }
+    static async Task ListenForNewCoins()
+    {
+        var client = new BinanceRestClient();
+        var bilinenSemboller = new HashSet<string>();
+
+        // Başlangıçta mevcut sembolleri al
+        var ilkCekim = await client.SpotApi.ExchangeData.GetExchangeInfoAsync();
+        if (!ilkCekim.Success)
+        {
+            Console.WriteLine("İlk sembol listesi alınamadı: " + ilkCekim.Error);
+            return;
+        }
+
+        foreach (var s in ilkCekim.Data.Symbols)
+            bilinenSemboller.Add(s.Name);
+
+        Console.WriteLine("Yeni coin dinleme başlatıldı...\n");
+
+        while (true)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30));
+
+            var result = await client.SpotApi.ExchangeData.GetExchangeInfoAsync();
+            if (!result.Success)
+            {
+                Console.WriteLine("API hatası: " + result.Error);
+                continue;
+            }
+
+            var mevcutSemboller = result.Data.Symbols.Select(s => s.Name).ToHashSet();
+            var yeniSemboller = mevcutSemboller.Except(bilinenSemboller).ToList();
+
+            if (yeniSemboller.Any())
+            {
+                foreach (var yeni in yeniSemboller)
+                {
+                    await SendTelegramMessage($"✅ Yeni coin listelendi: {yeni} - {DateTime.Now}");
+                }
+
+                // Yeni coinleri listeye ekle
+                foreach (var yeni in yeniSemboller)
+                    bilinenSemboller.Add(yeni);
+            }
+        }
     }
     static async Task updated()
     {
