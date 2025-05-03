@@ -92,7 +92,7 @@ class Program
             }
         });
         Console.WriteLine("1: ListenForNewCoins başlıyor");
-        _ = ListenForNewCoins();
+        //_ = ListenForNewCoins();
         Console.WriteLine("2: updated başlıyor");
         await updated();
         Console.WriteLine("3: StartSubscription başlıyor");
