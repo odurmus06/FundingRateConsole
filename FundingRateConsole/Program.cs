@@ -21,16 +21,13 @@ class Program
     // Binance API ve Socket Client
     private static BinanceRestClient client;
     private static BinanceSocketClient socketClient;
-    private static BinanceRestClient NewListedClient;
-
 
     // Funding Rate Verisi ve Koleksiyonlar
     private static ConcurrentDictionary<string, FundingRateRecord> nonTargetFundingRates = new();
     private static ConcurrentDictionary<string, FundingRateRecord> TargetFundingRates = new();
     private static ConcurrentDictionary<string, DateTime> IntervalFundingRates = new();
     private static ConcurrentDictionary<string, DateTime> NegativeTwoFundingRates = new();
-    private static string symbolFile = "symbols.json";
-    private static List<string> knownSymbols = new();
+
     // Telegram Bot Bilgileri
     private static readonly string botToken = "7938765330:AAFC6-bpOiffLaa8iSQwpzl0h3FR_yYT4s4";
     private static readonly string chatId = "7250151162";
@@ -69,9 +66,6 @@ class Program
             options.AutoTimestamp = true;
         });
 
-        NewListedClient = new BinanceRestClient();
-
-
         socketClient = new BinanceSocketClient(options =>
         {
             options.ApiCredentials = new ApiCredentials(
@@ -91,64 +85,12 @@ class Program
                 await client.UsdFuturesApi.Account.KeepAliveUserStreamAsync(listenKey);
             }
         });
-        //Console.WriteLine("1: ListenForNewCoins başlıyor");
-        //_ = ListenForNewCoins();
-        Console.WriteLine("2: updated başlıyor");
+        Console.WriteLine("1: updated başlıyor");
         await updated();
-        Console.WriteLine("3: StartSubscription başlıyor");
+        Console.WriteLine("2: StartSubscription başlıyor");
         await StartSubscription();
 
         Console.ReadKey();
-    }
-    static async Task ListenForNewCoins()
-    {
-        var client = new BinanceRestClient();
-        var bilinenSemboller = new HashSet<string>();
-
-        // Başlangıçta mevcut sembolleri al
-        var ilkCekim = await client.SpotApi.ExchangeData.GetExchangeInfoAsync();
-        if (!ilkCekim.Success)
-        {
-            Console.WriteLine("İlk sembol listesi alınamadı: " + ilkCekim.Error);
-            return;
-        }
-
-        Console.WriteLine("Symbol Count: " + ilkCekim.Data.Symbols.Count());
-
-        foreach (var s in ilkCekim.Data.Symbols)
-            bilinenSemboller.Add(s.Name);
-
-        Console.WriteLine("Yeni coin dinleme başlatıldı...\n");
-
-        while (true)
-        {
-            await Task.Delay(TimeSpan.FromSeconds(30));
-
-            var result = await client.SpotApi.ExchangeData.GetExchangeInfoAsync();
-            if (!result.Success)
-            {
-                Console.WriteLine("API hatası: " + result.Error);
-                continue;
-            }
-
-            var mevcutSemboller = result.Data.Symbols.Select(s => s.Name).ToHashSet();
-            var yeniSemboller = mevcutSemboller.Except(bilinenSemboller).ToList();
-
-            Console.WriteLine("Symbol Count: " + mevcutSemboller.Count());
-
-
-            if (yeniSemboller.Any())
-            {
-                foreach (var yeni in yeniSemboller)
-                {
-                    await SendTelegramMessage($"✅ Yeni coin listelendi: {yeni} - {DateTime.Now}");
-                }
-
-                // Yeni coinleri listeye ekle
-                foreach (var yeni in yeniSemboller)
-                    bilinenSemboller.Add(yeni);
-            }
-        }
     }
     static async Task updated()
     {
@@ -418,29 +360,6 @@ class Program
                     var markPrice = update.Data.MarkPrice;
                     var negativeThreshold = GetNegativeThreshold();
 
-                    if (topGainers.Any(x => x.Symbol.Equals(symbol)))
-                    {
-
-                        if (fundingRatePercentage == 0.0050m)
-                        {
-                            if (!IntervalFundingRates.ContainsKey(symbol))
-                            {
-                                IntervalFundingRates[symbol] = DateTime.Now;
-                            }
-
-                        }
-                        else if(fundingRatePercentage >= 0 && fundingRatePercentage < 0.0050m)
-                        {
-                            if (IntervalFundingRates.ContainsKey(symbol))
-                            {
-                                IntervalFundingRates.TryRemove(symbol, out _);
-
-                                await SendTelegramMessage($" Short Fırsatı: {symbol}");
-
-                            }
-                        }
-                    }
-
                     await HandleFundingRateAsync(symbol, fundingRatePercentage, dateTime, rate => fundingRatePercentage <= negativeThreshold, markPrice);
                 }
                 catch (Exception ex)
@@ -539,6 +458,7 @@ class Program
     {
         return firstDestinition;
     }
+
 
     private static async Task CheckVolumeAndMomentumWithFR(string symbol, decimal currentPrice, decimal prevPrice, DateTime prevDate)
     {
@@ -683,7 +603,20 @@ class Program
             {
                 if (nonTargetFundingRates.ContainsKey(symbol))
                 {
-                    TargetFundingRates[symbol] = new FundingRateRecord { Timestamp = DateTime.UtcNow, Price = price };
+                    var oi = await client.UsdFuturesApi.ExchangeData.GetOpenInterestAsync(symbol);
+                    var ticker = await client.UsdFuturesApi.ExchangeData.GetTickerAsync(symbol);
+
+                    var openInterest = oi.Data?.OpenInterest ?? 0;
+                    var volume = ticker.Data?.QuoteVolume ?? 0;
+
+                    TargetFundingRates[symbol] = new FundingRateRecord
+                    {
+                        Timestamp = DateTime.UtcNow,
+                        Price = price,
+                        Volume = volume,
+                        OpenInterest = openInterest
+                    };
+
                     nonTargetFundingRates.TryRemove(symbol, out _);
 
                     await SendTelegramMessage($"firstDestinition geçildi  - Symbol: {symbol}");
@@ -711,9 +644,53 @@ class Program
                         : "Bulunamadı";
 
                     // Mesajı göndermekte kullanıyoruz:
-                    await SendTelegramMessage($"second geçildi  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {price} | Change: {changeText}");
+                    var prev = TargetFundingRates[symbol];
 
-                    await CheckVolumeAndMomentumWithFR(symbol,  price, TargetFundingRates[symbol].Price, TargetFundingRates[symbol].Timestamp);
+                    var oi = await client.UsdFuturesApi.ExchangeData.GetOpenInterestAsync(symbol);
+                    var ticker = await client.UsdFuturesApi.ExchangeData.GetTickerAsync(symbol);
+
+                    var openInterest = oi.Data?.OpenInterest ?? 0;
+                    var volume = ticker.Data?.QuoteVolume ?? 0;
+
+                    decimal priceChange = ((price - prev.Price) / prev.Price) * 100;
+                    decimal oiChange = ((openInterest - prev.OpenInterest) / prev.OpenInterest) * 100;
+                    decimal volumeChange = ((volume - prev.Volume) / prev.Volume) * 100;
+
+                    // Sinyal yorumu belirleme
+                    string yorum;
+
+                    if (priceChange > 0 && oiChange > 0 && volumeChange > 30)
+                    {
+                        yorum = "🔥 Güçlü long sinyali! \n";
+                        isOrderActive = true;
+                        await PlaceOrderAsync(symbol);
+                        yorum += $"\n📈 *İşleme girildi* \n";
+                    }
+                    else if (priceChange < 0 && oiChange > 0)
+                    {
+                        yorum = "⚠️ Fiyat düşse de OI artıyor → squeeze olabilir! \n";
+                        yorum += $"\n📉 *İşleme girilmedi* \n";
+                    }
+                    else
+                    { 
+                        yorum = "📉 Sinyal zayıf, işlem yapılmayabilir. \n";
+                        yorum += $"\n📉 *İşleme girilmedi* \n";
+                    }
+
+                    // Telegram mesajı
+                    string telegramMessage = $@"
+                        📊 Funding Analizi - {symbol}
+
+                        🕒 Aralık: -1.5% ➜ -2%
+                        💰 Fiyat: {price}  
+                        📈 Price Change: {priceChange:F2}%
+                        📊 OI Change: {oiChange:F2}%
+                        🔄 Volume Change: {volumeChange:F2}%
+
+                        📌 Yorum: {yorum}
+                        ";
+
+                    await SendTelegramMessage(telegramMessage);
                     TargetFundingRates.TryRemove(symbol, out _);
                 }
             }
@@ -740,5 +717,7 @@ class Program
 public class FundingRateRecord
 {
     public DateTime Timestamp { get; set; }
+    public decimal OpenInterest { get; set; }
     public decimal Price { get; set; }
+    public decimal Volume { get; set; }
 }
