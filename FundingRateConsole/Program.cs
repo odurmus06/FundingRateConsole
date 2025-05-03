@@ -134,6 +134,9 @@ class Program
             var mevcutSemboller = result.Data.Symbols.Select(s => s.Name).ToHashSet();
             var yeniSemboller = mevcutSemboller.Except(bilinenSemboller).ToList();
 
+            Console.WriteLine("Symbol Count: " + mevcutSemboller.Count());
+
+
             if (yeniSemboller.Any())
             {
                 foreach (var yeni in yeniSemboller)
