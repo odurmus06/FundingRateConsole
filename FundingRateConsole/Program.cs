@@ -91,7 +91,7 @@ class Program
                 await client.UsdFuturesApi.Account.KeepAliveUserStreamAsync(listenKey);
             }
         });
-        Console.WriteLine("1: ListenForNewCoins başlıyor");
+        //Console.WriteLine("1: ListenForNewCoins başlıyor");
         //_ = ListenForNewCoins();
         Console.WriteLine("2: updated başlıyor");
         await updated();
