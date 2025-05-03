@@ -40,13 +40,13 @@ class Program
     private static string apiSecret = "IjP1ZmJXcrRxnep0koHlqnbELxYagXgm295FP0wHG2Ow3QV2jQCasUAyWEmem38l";
     private static string listenKey;
     // Hedef Değerler ve Eşikler
-    private static decimal firstDestinition = -0.5m;
-    private static decimal secondDestinition = -0.6m;
+    private static decimal firstDestinition = -0.2m;
+    private static decimal secondDestinition = -0.25m;
     private static decimal speedTrashold = 1;
 
     // Top Gainers
     private static List<(string Symbol, decimal Change)> topGainers = new();
-    private const int topGainerCount = 5;
+    private const int topGainerCount = 7;
     private const decimal minimumVolume = 10_000_000;
 
     // Order Durumu
@@ -619,7 +619,7 @@ class Program
 
 
 
-            if (isStrongUptrend)
+            if (true)
             {
                 isOrderActive = true;
                 await PlaceOrderAsync(symbol);
@@ -695,7 +695,7 @@ class Program
 
                 if (fundingRatePercentage <= secondDestinition &&
                     TargetFundingRates.ContainsKey(symbol) &&
-                    //topGainers.Any(x => x.Symbol.Equals(symbol)) &&
+                    topGainers.Any(x => x.Symbol.Equals(symbol)) &&
                     isOrderActive == false
                     )
                 {
@@ -709,10 +709,9 @@ class Program
 
                     // Mesajı göndermekte kullanıyoruz:
                     await SendTelegramMessage($"second geçildi  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {price} | Change: {changeText}");
-                    TargetFundingRates.TryRemove(symbol, out _);
 
                     await CheckVolumeAndMomentumWithFR(symbol,  price, TargetFundingRates[symbol].Price, TargetFundingRates[symbol].Timestamp);
-                    await SendTelegramMessage($"\n📈 *İşleme girildi* \n");
+                    TargetFundingRates.TryRemove(symbol, out _);
                 }
             }
             else
