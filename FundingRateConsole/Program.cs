@@ -334,6 +334,57 @@ class Program
         }, TaskContinuationOptions.OnlyOnFaulted);
     }
 
+    public static async Task<bool> HacimArtisiVarMi( string symbol)
+    {
+        try
+        {
+            var klinesResult = await client.UsdFuturesApi.ExchangeData
+                .GetKlinesAsync(symbol, KlineInterval.OneMinute, limit: 10);
+
+            if (!klinesResult.Success || klinesResult.Data.Count() < 10)
+            {
+                return false;
+            }
+
+            var klines = klinesResult.Data.ToList();
+            var onceki5Hacim = klines.Take(5).Sum(k => k.Volume);
+            var son5Hacim = klines.Skip(5).Sum(k => k.Volume);
+
+            bool hacimArtisi = son5Hacim > 1.5m * onceki5Hacim;
+
+            return hacimArtisi;
+        }
+        catch (Exception ex)
+        {
+            return false;
+        }
+    }
+
+    public static async Task<bool> SpreadVeLikiditeUygunMu( string symbol)
+    {
+        try
+        {
+            var orderBookResult = await client.UsdFuturesApi.ExchangeData.GetOrderBookAsync(symbol, 5);
+
+            if (!orderBookResult.Success || orderBookResult.Data.Bids.Count() == 0 || orderBookResult.Data.Asks.Count() == 0)
+            {
+                return false;
+            }
+            var bid = orderBookResult.Data.Bids.First(); // En yüksek alış
+            var ask = orderBookResult.Data.Asks.First(); // En düşük satış
+            decimal spread = ask.Price - bid.Price;
+            decimal spreadYuzdesi = spread / ((ask.Price + bid.Price) / 2m) * 100m;
+            bool spreadUygun = spreadYuzdesi <= 0.2m; // %0.2 altı spread kabul
+            bool likiditeYeterli = bid.Quantity >= 500m || ask.Quantity >= 500m;
+            return spreadUygun && likiditeYeterli;
+        }
+        catch (Exception ex)
+        {
+            return false;
+        }
+    }
+
+
     private static async Task SubscribeToTickerUpdatesAsync()
     {
         BinanceRestClient client = new BinanceRestClient();
@@ -387,13 +438,25 @@ class Program
                             {
                                 message += $"⚠️ SHORT fırsatı!\n" +
                                            $"🔺 Cap Değeri: {cap:P4}";
-                                isSendMsg = true;
+
+                                bool hacimArtisiVar = await HacimArtisiVarMi(symbol);
+                                bool spreadVeLikiditeUygun = await SpreadVeLikiditeUygunMu(symbol);
+                                if (hacimArtisiVar && spreadVeLikiditeUygun)
+                                {
+                                    isSendMsg = true;
+                                }
+                                
                             }
                             else if (fundingRatePercentage <= 0.8m * floor)
                             {
                                 message += $"⚠️ LONG fırsatı!\n" +
                                            $"🔻 Floor Değeri: {floor:P4}";
-                                isSendMsg = true;
+                                bool hacimArtisiVar = await HacimArtisiVarMi(symbol);
+                                bool spreadVeLikiditeUygun = await SpreadVeLikiditeUygunMu(symbol);
+                                if (hacimArtisiVar && spreadVeLikiditeUygun)
+                                {
+                                    isSendMsg = true;
+                                }
                             }
                             else
                             {
