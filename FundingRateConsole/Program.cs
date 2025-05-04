@@ -360,6 +360,32 @@ class Program
                     var markPrice = update.Data.MarkPrice;
                     var negativeThreshold = GetNegativeThreshold();
 
+
+                    if (topGainers.Any(x => x.Symbol.Equals(symbol)))
+                    {
+                        DateTime nextFundingTime = update.Data.NextFundingTime;
+                        TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
+
+                        if (timeRemaining.TotalMinutes <= 60 && fundingRatePercentage == 0.0050m)
+                        {
+                            if (!IntervalFundingRates.ContainsKey(symbol))
+                            {
+                                IntervalFundingRates[symbol] = DateTime.Now;
+
+                                string message = $"Scalp geri çekilme fırsatı  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {update.Data.MarkPrice}";
+
+                                await SendTelegramMessage(message);
+                            }
+                        }
+                        else
+                        {
+                            if (IntervalFundingRates.ContainsKey(symbol))
+                            {
+                                IntervalFundingRates.TryRemove(symbol, out _);
+                            }
+                        }
+                    }
+
                     await HandleFundingRateAsync(symbol, fundingRatePercentage, dateTime, rate => fundingRatePercentage <= negativeThreshold, markPrice);
                 }
                 catch (Exception ex)
@@ -672,7 +698,7 @@ class Program
                         yorum += $"\n📉 *İşleme girilmedi* \n";
                     }
                     else
-                    { 
+                    {
                         yorum = "📉 Sinyal zayıf, işlem yapılmayabilir. \n";
                         yorum += $"\n📉 *İşleme girilmedi* \n";
                     }
