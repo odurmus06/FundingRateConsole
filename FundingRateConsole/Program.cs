@@ -361,21 +361,49 @@ class Program
                     var negativeThreshold = GetNegativeThreshold();
 
 
-                    if (topGainers.Any(x => x.Symbol.Equals(symbol)))
-                    {
+                
                         DateTime nextFundingTime = update.Data.NextFundingTime;
                         TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
 
-                        if (timeRemaining.TotalMinutes <= 60 && fundingRatePercentage == 0.0050m)
+                        if (timeRemaining.TotalMinutes <= 15)
                         {
                             if (!IntervalFundingRates.ContainsKey(symbol))
                             {
                                 IntervalFundingRates[symbol] = DateTime.Now;
 
-                                string message = $"Scalp geri çekilme fırsatı  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {update.Data.MarkPrice}";
 
-                                await SendTelegramMessage(message);
+                            var fundingInfo = await client.UsdFuturesApi.ExchangeData.GetFundingInfoAsync();
+                            var symbolInfo = fundingInfo.Data.First(x => x.Symbol == symbol);
+                            var cap = symbolInfo.AdjustedFundingRateCap;
+                            var floor = symbolInfo.AdjustedFundingRateFloor;
+
+                            string message = $"📉 Scalp Geri Çekilme Fırsatı\n" +
+                                   $"🔹 Symbol: {symbol}\n" +
+                                   $"🔹 Funding Rate: {fundingRatePercentage:P4}\n" +
+                                   $"🔹 Mark Price: {update.Data.MarkPrice:F4}\n";
+                            bool isSendMsg = false;
+
+                            if (fundingRatePercentage >= 0.8m * cap)
+                            {
+                                message += $"⚠️ SHORT fırsatı!\n" +
+                                           $"🔺 Cap Değeri: {cap:P4}";
+                                isSendMsg = true;
                             }
+                            else if (fundingRatePercentage <= 0.8m * floor)
+                            {
+                                message += $"⚠️ LONG fırsatı!\n" +
+                                           $"🔻 Floor Değeri: {floor:P4}";
+                                isSendMsg = true;
+                            }
+                            else
+                            {
+                                message += $"ℹ️ Funding rate şu an için nötr aralıkta.";
+                                isSendMsg = false;
+                            }
+
+                            if(isSendMsg)
+                            await SendTelegramMessage(message);
+                        }
                         }
                         else
                         {
@@ -384,7 +412,7 @@ class Program
                                 IntervalFundingRates.TryRemove(symbol, out _);
                             }
                         }
-                    }
+                   
 
                     await HandleFundingRateAsync(symbol, fundingRatePercentage, dateTime, rate => fundingRatePercentage <= negativeThreshold, markPrice);
                 }
