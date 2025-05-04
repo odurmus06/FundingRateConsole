@@ -424,7 +424,13 @@ class Program
 
 
                             var fundingInfo = await client.UsdFuturesApi.ExchangeData.GetFundingInfoAsync();
-                            var symbolInfo = fundingInfo.Data.First(x => x.Symbol == symbol);
+                            var symbolInfo = fundingInfo.Data.FirstOrDefault(x => x.Symbol == symbol);
+
+                            if (symbolInfo == null)
+                            {
+                                await SendTelegramMessage($"❌ Uyarı: {symbol} sembolü fundingInfo'da bulunamadı.");
+                                return;
+                            }
                             var cap = symbolInfo.AdjustedFundingRateCap;
                             var floor = symbolInfo.AdjustedFundingRateFloor;
 
