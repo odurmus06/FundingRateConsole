@@ -481,7 +481,7 @@ class Program
                 }
                 catch (Exception ex)
                 {
-                    await SendTelegramMessage($"⚠️ Funding callback hatası: {ex.Message}");
+                    await SendTelegramMessage($"⚠️ Funding callback hatası: {ex.StackTrace}");
                 }
             });
 
