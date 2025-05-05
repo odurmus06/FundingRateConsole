@@ -718,6 +718,25 @@ var symbols = (await client.UsdFuturesApi.ExchangeData.GetBookPricesAsync())
         return buyVolume / totalVolume;
     }
 
+    private static async Task<bool> IsLongVolumeDominant(string symbol)
+    {
+        var tradesResult = await client.UsdFuturesApi.ExchangeData.GetTradeHistoryAsync(symbol, limit: 1000);
+
+        if (!tradesResult.Success)
+            throw new Exception("Trade verileri alınamadı: " + tradesResult.Error);
+
+        var trades = tradesResult.Data;
+
+        decimal buyVolume = trades
+            .Where(t => !t.BuyerIsMaker)
+            .Sum(t => t.QuoteQuantity);
+
+        decimal sellVolume = trades
+            .Where(t => t.BuyerIsMaker)
+            .Sum(t => t.QuoteQuantity);
+
+        return buyVolume > sellVolume * 1.2m;
+    }
 
     private static async Task HandleFundingRateAsync(string symbol, decimal fundingRatePercentage, string dateTime, Func<decimal, bool> condition, decimal price)
     {
@@ -785,7 +804,7 @@ var symbols = (await client.UsdFuturesApi.ExchangeData.GetBookPricesAsync())
                     // Sinyal yorumu belirleme
                     string yorum;
 
-                    if (priceChange > 0 && oiChange > 0 && volumeChange > 30)
+                    if (priceChange > 0 && oiChange > 0 && volumeChange > 20 && IsLongVolumeDominant(symbol).Result)
                     {
                         yorum = "🔥 Güçlü long sinyali! \n";
                         isOrderActive = true;
