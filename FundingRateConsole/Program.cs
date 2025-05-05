@@ -37,8 +37,8 @@ class Program
     private static string apiSecret = "IjP1ZmJXcrRxnep0koHlqnbELxYagXgm295FP0wHG2Ow3QV2jQCasUAyWEmem38l";
     private static string listenKey;
     // Hedef Değerler ve Eşikler
-    private static decimal firstDestinition = -0.39m;
-    private static decimal secondDestinition = -0.40m;
+    private static decimal firstDestinition = -0.21m;
+    private static decimal secondDestinition = -0.38m;
     private static decimal speedTrashold = 1;
 
     // Top Gainers
@@ -439,7 +439,7 @@ var symbols = (await client.UsdFuturesApi.ExchangeData.GetBookPricesAsync())
 
                             string message = $"📉 Scalp Geri Çekilme Fırsatı\n" +
                                    $"🔹 Symbol: {symbol}\n" +
-                                   $"🔹 Funding Rate: {fundingRatePercentage:P4}\n" +
+                                   $"🔹 Funding Rate: {fundingRatePercentage}\n" +
                                    $"🔹 Mark Price: {update.Data.MarkPrice:F4}\n";
                             bool isSendMsg = false;
 
@@ -459,7 +459,7 @@ var symbols = (await client.UsdFuturesApi.ExchangeData.GetBookPricesAsync())
                             else if (fundingRatePercentage <= 0.8m * floor)
                             {
                                 message += $"⚠️ LONG fırsatı!\n" +
-                                           $"🔻 Floor Değeri: {floor:P4}";
+                                           $"🔻 Floor Değeri: {floor}";
                                 bool hacimArtisiVar = await HacimArtisiVarMi(symbol);
                                 bool spreadVeLikiditeUygun = await SpreadVeLikiditeUygunMu(symbol);
                                 if (hacimArtisiVar && spreadVeLikiditeUygun)
