@@ -37,8 +37,8 @@ class Program
     private static string apiSecret = "IjP1ZmJXcrRxnep0koHlqnbELxYagXgm295FP0wHG2Ow3QV2jQCasUAyWEmem38l";
     private static string listenKey;
     // Hedef Değerler ve Eşikler
-    private static decimal firstDestinition = -0.266m;
-    private static decimal secondDestinition = -0.35m;
+    private static decimal firstDestinition = -0.27m;
+    private static decimal secondDestinition = -0.32m;
     private static decimal speedTrashold = 1;
 
     // Top Gainers
