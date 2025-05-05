@@ -43,7 +43,7 @@ class Program
 
     // Top Gainers
     private static List<(string Symbol, decimal Change)> topGainers = new();
-    private const int topGainerCount = 7;
+    private const int topGainerCount = 20;
     private const decimal minimumVolume = 10_000_000;
 
     // Order Durumu
@@ -388,10 +388,11 @@ class Program
     private static async Task SubscribeToTickerUpdatesAsync()
     {
         BinanceRestClient client = new BinanceRestClient();
-        var symbols = (await client.UsdFuturesApi.ExchangeData.GetBookPricesAsync())
-            .Data
-            .Select(x => x.Symbol)
-            .ToList();
+var symbols = (await client.UsdFuturesApi.ExchangeData.GetBookPricesAsync())
+    .Data
+    .Where(x => x.Symbol.EndsWith("USDT")) // yalnızca USDT pariteleri
+    .Select(x => x.Symbol)
+    .ToList();
 
         int batchSize = 20;
         var symbolBatches = symbols.Select((symbol, index) => new { symbol, index })
@@ -418,6 +419,8 @@ class Program
 
                         if (timeRemaining.TotalMinutes <= 15)
                         {
+                            if(topGainers.Any(x => x.Symbol.Equals(symbol))) 
+                        { 
                             if (!IntervalFundingRates.ContainsKey(symbol))
                             {
                                 IntervalFundingRates[symbol] = DateTime.Now;
@@ -472,7 +475,7 @@ class Program
 
                             if(isSendMsg)
                             await SendTelegramMessage(message);
-                        }
+                        }}
                         }
                         else
                         {
