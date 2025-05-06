@@ -38,7 +38,7 @@ class Program
     private static string listenKey;
     // Hedef Değerler ve Eşikler
     private static decimal firstDestinition = -1.5m;
-    private static decimal secondDestinition = -0.45m;
+    private static decimal secondDestinition = -2m;
     private static decimal speedTrashold = 1;
 
     // Top Gainers
