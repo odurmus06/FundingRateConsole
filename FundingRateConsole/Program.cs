@@ -37,7 +37,7 @@ class Program
     private static string apiSecret = "IjP1ZmJXcrRxnep0koHlqnbELxYagXgm295FP0wHG2Ow3QV2jQCasUAyWEmem38l";
     private static string listenKey;
     // Hedef Değerler ve Eşikler
-    private static decimal firstDestinition = -0.41m;
+    private static decimal firstDestinition = -1.5m;
     private static decimal secondDestinition = -0.45m;
     private static decimal speedTrashold = 1;
 
@@ -417,65 +417,19 @@ var symbols = (await client.UsdFuturesApi.ExchangeData.GetBookPricesAsync())
                         DateTime nextFundingTime = update.Data.NextFundingTime;
                         TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
 
-                        if (timeRemaining.TotalMinutes <= 15)
+                        if (timeRemaining.TotalMinutes <= 2 && fundingRatePercentage < 0)
                         {
-                            if(topGainers.Any(x => x.Symbol.Equals(symbol))) 
-                        { 
                             if (!IntervalFundingRates.ContainsKey(symbol))
                             {
                                 IntervalFundingRates[symbol] = DateTime.Now;
-
-
-                            var fundingInfo = await client.UsdFuturesApi.ExchangeData.GetFundingInfoAsync();
-                            var symbolInfo = fundingInfo.Data.FirstOrDefault(x => x.Symbol == symbol);
-
-                            if (symbolInfo == null)
-                            {
-                                await SendTelegramMessage($"❌ Uyarı: {symbol} sembolü fundingInfo'da bulunamadı.");
-                                return;
-                            }
-                            var cap = symbolInfo.AdjustedFundingRateCap;
-                            var floor = symbolInfo.AdjustedFundingRateFloor;
 
                             string message = $"📉 Scalp Geri Çekilme Fırsatı\n" +
                                    $"🔹 Symbol: {symbol}\n" +
                                    $"🔹 Funding Rate: {fundingRatePercentage}\n" +
                                    $"🔹 Mark Price: {update.Data.MarkPrice:F4}\n";
-                            bool isSendMsg = false;
-
-                            if (fundingRatePercentage >= 0.8m * cap)
-                            {
-                                message += $"⚠️ SHORT fırsatı!\n" +
-                                           $"🔺 Cap Değeri: {cap:P4}";
-
-                                bool hacimArtisiVar = await HacimArtisiVarMi(symbol);
-                                bool spreadVeLikiditeUygun = await SpreadVeLikiditeUygunMu(symbol);
-                                if (hacimArtisiVar && spreadVeLikiditeUygun)
-                                {
-                                    isSendMsg = true;
-                                }
-                                
-                            }
-                            else if (fundingRatePercentage <= 0.8m * floor)
-                            {
-                                message += $"⚠️ LONG fırsatı!\n" +
-                                           $"🔻 Floor Değeri: {floor}";
-                                bool hacimArtisiVar = await HacimArtisiVarMi(symbol);
-                                bool spreadVeLikiditeUygun = await SpreadVeLikiditeUygunMu(symbol);
-                                if (hacimArtisiVar && spreadVeLikiditeUygun)
-                                {
-                                    isSendMsg = true;
-                                }
-                            }
-                            else
-                            {
-                                message += $"ℹ️ Funding rate şu an için nötr aralıkta.";
-                                isSendMsg = false;
-                            }
-
-                            if(isSendMsg)
+                   
                             await SendTelegramMessage(message);
-                        }}
+                        }
                         }
                         else
                         {
