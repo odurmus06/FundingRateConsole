@@ -414,30 +414,30 @@ var symbols = (await client.UsdFuturesApi.ExchangeData.GetBookPricesAsync())
 
 
                 
-                        DateTime nextFundingTime = update.Data.NextFundingTime;
-                        TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
+                        //DateTime nextFundingTime = update.Data.NextFundingTime;
+                        //TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
 
-                        if (timeRemaining.TotalMinutes <= 2 && fundingRatePercentage < 0)
-                        {
-                            if (!IntervalFundingRates.ContainsKey(symbol))
-                            {
-                                IntervalFundingRates[symbol] = DateTime.Now;
+                        //if (timeRemaining.TotalMinutes <= 2 && fundingRatePercentage < 0)
+                        //{
+                        //    if (!IntervalFundingRates.ContainsKey(symbol))
+                        //    {
+                        //        IntervalFundingRates[symbol] = DateTime.Now;
 
-                            string message = $"📉 Scalp Geri Çekilme Fırsatı\n" +
-                                   $"🔹 Symbol: {symbol}\n" +
-                                   $"🔹 Funding Rate: {fundingRatePercentage}\n" +
-                                   $"🔹 Mark Price: {update.Data.MarkPrice:F4}\n";
+                        //    string message = $"📉 Scalp Geri Çekilme Fırsatı\n" +
+                        //           $"🔹 Symbol: {symbol}\n" +
+                        //           $"🔹 Funding Rate: {fundingRatePercentage}\n" +
+                        //           $"🔹 Mark Price: {update.Data.MarkPrice:F4}\n";
                    
-                            await SendTelegramMessage(message);
-                        }
-                        }
-                        else
-                        {
-                            if (IntervalFundingRates.ContainsKey(symbol))
-                            {
-                                IntervalFundingRates.TryRemove(symbol, out _);
-                            }
-                        }
+                        //    await SendTelegramMessage(message);
+                        //}
+                        //}
+                        //else
+                        //{
+                        //    if (IntervalFundingRates.ContainsKey(symbol))
+                        //    {
+                        //        IntervalFundingRates.TryRemove(symbol, out _);
+                        //    }
+                        //}
                    
 
                     await HandleFundingRateAsync(symbol, fundingRatePercentage, dateTime, rate => fundingRatePercentage <= negativeThreshold, markPrice);
