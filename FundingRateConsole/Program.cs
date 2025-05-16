@@ -1,10 +1,13 @@
 ﻿using Binance.Net;
 using Binance.Net.Clients;
 using Binance.Net.Enums;
+using Binance.Net.Interfaces;
+using Binance.Net.Objects.Models.Spot.Socket;
 using CryptoExchange.Net.Authentication;
 using CryptoExchange.Net.CommonObjects;
 using CryptoExchange.Net.Interfaces;
 using CryptoExchange.Net.Interfaces.CommonClients;
+using CryptoExchange.Net.Objects.Sockets;
 using CryptoExchange.Net.Sockets;
 using System;
 using System.Collections.Concurrent;
@@ -52,6 +55,8 @@ class Program
     // Diğer Değişkenler
     private static readonly object locker = new();
 
+    static HashSet<string> spotKnownSymbols = new();
+    static HashSet<string> futuresKnownSymbols = new();
     static async Task Main(string[] args)
     {
         _ = SendTelegramMessage("Console Uygulaması başlatıldı.");
@@ -85,15 +90,56 @@ class Program
                 await client.UsdFuturesApi.Account.KeepAliveUserStreamAsync(listenKey);
             }
         });
-        Console.WriteLine("1: updated başlıyor");
-        await updated();
-        Console.WriteLine("2: StartSubscription başlıyor");
+
+        // Mevcut sembolleri belleğe al
+        var spotSymbols = await client.SpotApi.ExchangeData.GetExchangeInfoAsync();
+        var futuresSymbols = await client.UsdFuturesApi.ExchangeData.GetExchangeInfoAsync();
+
+        foreach (var s in spotSymbols.Data.Symbols)
+            spotKnownSymbols.Add(s.Name);
+
+        foreach (var s in futuresSymbols.Data.Symbols)
+            futuresKnownSymbols.Add(s.Name);
+
         await StartSubscription();
 
+       
+        Console.ReadLine();
         Console.ReadKey();
     }
+
+    private static void SpotOnTickerUpdate(DataEvent<IEnumerable<IBinanceTick>> obj)
+    {
+        foreach (var ticker in obj.Data)
+        {
+            string symbol = ticker.Symbol;
+
+            //Console.WriteLine($"symbol: {symbol} tarih : {DateTime.Now.ToString("HH:mm:ss")}");
+
+
+            if (!spotKnownSymbols.Contains(symbol) && symbol.EndsWith("USDT"))
+            {
+                spotKnownSymbols.Add(symbol);
+
+                _ = SendTelegramMessage($"""
+                🆕 *Spot Yeni Coin Listelendi!*
+
+                📈 Sembol: `{symbol}`
+                📅 Tarih: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
+                🔁 Binance USDT Futures'ta listelendi.
+
+                🚀 İlk fırsatlar için dikkatli ol!
+
+                #Binance #NewListing
+                """);
+            }
+        }
+    }
+
+
     static async Task updated()
     {
+        Console.WriteLine("updated() Func Starting...");
         var orderSubscription = await socketClient.UsdFuturesApi.Account.SubscribeToUserDataUpdatesAsync(
         listenKey,
         data =>
@@ -326,15 +372,44 @@ class Program
 
     private static async Task StartSubscription()
     {
-        await startTicker();
-        //await PrintTopGainersLoop();
-        await SubscribeToTickerUpdatesAsync().ContinueWith(t =>
-        {
-            _ = SendTelegramMessage("Abonelik Başlatılamadı.");
-        }, TaskContinuationOptions.OnlyOnFaulted);
+        var tickerTask = startTicker();
+        var spotStreamTask = socketClient.SpotApi.ExchangeData.SubscribeToAllTickerUpdatesAsync(SpotOnTickerUpdate);
+        var subscribeTask = SubscribeToTickerUpdatesAsync();
+        var updataTask = updated();
+        var futuresStreamTask = socketClient.UsdFuturesApi.ExchangeData.SubscribeToAllTickerUpdatesAsync(FuturesOnTickerUpdate);
+
+        await Task.WhenAll(tickerTask, spotStreamTask, subscribeTask, updataTask, futuresStreamTask);
     }
 
-    public static async Task<bool> HacimArtisiVarMi( string symbol)
+    private static void FuturesOnTickerUpdate(DataEvent<IEnumerable<IBinance24HPrice>> obj)
+    {
+        foreach (var ticker in obj.Data)
+        {
+            string symbol = ticker.Symbol;
+
+            //Console.WriteLine($"symbol: {symbol} tarih : {DateTime.Now.ToString("HH:mm:ss")}");
+
+
+            if (!futuresKnownSymbols.Contains(symbol) && symbol.EndsWith("USDT"))
+            {
+                futuresKnownSymbols.Add(symbol);
+
+                _ = SendTelegramMessage($"""
+                🆕 *Futures Yeni Coin Listelendi!*
+
+                📈 Sembol: `{symbol}`
+                📅 Tarih: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
+                🔁 Binance USDT Futures'ta listelendi.
+
+                🚀 İlk fırsatlar için dikkatli ol!
+
+                #Binance #NewListing
+                """);
+            }
+        }
+    }
+
+    public static async Task<bool> HacimArtisiVarMi(string symbol)
     {
         try
         {
@@ -360,7 +435,7 @@ class Program
         }
     }
 
-    public static async Task<bool> SpreadVeLikiditeUygunMu( string symbol)
+    public static async Task<bool> SpreadVeLikiditeUygunMu(string symbol)
     {
         try
         {
@@ -387,12 +462,13 @@ class Program
 
     private static async Task SubscribeToTickerUpdatesAsync()
     {
+        Console.WriteLine("SubscribeToTickerUpdatesAsync() Func Starting...");
         BinanceRestClient client = new BinanceRestClient();
-var symbols = (await client.UsdFuturesApi.ExchangeData.GetBookPricesAsync())
-    .Data
-    .Where(x => x.Symbol.EndsWith("USDT")) // yalnızca USDT pariteleri
-    .Select(x => x.Symbol)
-    .ToList();
+        var symbols = (await client.UsdFuturesApi.ExchangeData.GetBookPricesAsync())
+            .Data
+            .Where(x => x.Symbol.EndsWith("USDT")) // yalnızca USDT pariteleri
+            .Select(x => x.Symbol)
+            .ToList();
 
         int batchSize = 20;
         var symbolBatches = symbols.Select((symbol, index) => new { symbol, index })
@@ -413,32 +489,32 @@ var symbols = (await client.UsdFuturesApi.ExchangeData.GetBookPricesAsync())
                     var negativeThreshold = GetNegativeThreshold();
 
 
-                
-                        //DateTime nextFundingTime = update.Data.NextFundingTime;
-                        //TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
 
-                        //if (timeRemaining.TotalMinutes <= 2 && fundingRatePercentage < 0)
-                        //{
-                        //    if (!IntervalFundingRates.ContainsKey(symbol))
-                        //    {
-                        //        IntervalFundingRates[symbol] = DateTime.Now;
+                    //DateTime nextFundingTime = update.Data.NextFundingTime;
+                    //TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
 
-                        //    string message = $"📉 Scalp Geri Çekilme Fırsatı\n" +
-                        //           $"🔹 Symbol: {symbol}\n" +
-                        //           $"🔹 Funding Rate: {fundingRatePercentage}\n" +
-                        //           $"🔹 Mark Price: {update.Data.MarkPrice:F4}\n";
-                   
-                        //    await SendTelegramMessage(message);
-                        //}
-                        //}
-                        //else
-                        //{
-                        //    if (IntervalFundingRates.ContainsKey(symbol))
-                        //    {
-                        //        IntervalFundingRates.TryRemove(symbol, out _);
-                        //    }
-                        //}
-                   
+                    //if (timeRemaining.TotalMinutes <= 2 && fundingRatePercentage < 0)
+                    //{
+                    //    if (!IntervalFundingRates.ContainsKey(symbol))
+                    //    {
+                    //        IntervalFundingRates[symbol] = DateTime.Now;
+
+                    //    string message = $"📉 Scalp Geri Çekilme Fırsatı\n" +
+                    //           $"🔹 Symbol: {symbol}\n" +
+                    //           $"🔹 Funding Rate: {fundingRatePercentage}\n" +
+                    //           $"🔹 Mark Price: {update.Data.MarkPrice:F4}\n";
+
+                    //    await SendTelegramMessage(message);
+                    //}
+                    //}
+                    //else
+                    //{
+                    //    if (IntervalFundingRates.ContainsKey(symbol))
+                    //    {
+                    //        IntervalFundingRates.TryRemove(symbol, out _);
+                    //    }
+                    //}
+
 
                     await HandleFundingRateAsync(symbol, fundingRatePercentage, dateTime, rate => fundingRatePercentage <= negativeThreshold, markPrice);
                 }
@@ -473,12 +549,14 @@ var symbols = (await client.UsdFuturesApi.ExchangeData.GetBookPricesAsync())
 
     private static async Task startTicker()
     {
+        Console.WriteLine("startTicker() Func Starting...");
         var tickerSubscriptionResult = await socketClient.UsdFuturesApi.ExchangeData.SubscribeToAllTickerUpdatesAsync(update =>
         {
             try
             {
                 lock (locker)
                 {
+                   
                     foreach (var ticker in update.Data)
                     {
                         if (ticker.QuoteVolume < minimumVolume || string.IsNullOrEmpty(ticker.Symbol))
