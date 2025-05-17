@@ -799,7 +799,7 @@ class Program
                         Console.WriteLine($"Standart Sapma: {stdDev * 100}%");
 
                         // 3. Anomalileri Tespit Et (Örneğin: Ortalama - 2x Standart Sapma)
-                        threshold = averageFR - (2 * stdDev);
+                        threshold = averageFR - (10 * stdDev);
 
                     }
 
