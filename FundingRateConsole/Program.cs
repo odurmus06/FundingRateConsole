@@ -816,6 +816,7 @@ class Program
 
                     nonTargetFundingRates.TryRemove(symbol, out _);
 
+                    if(fundingRatePercentage < threshold)
                     await SendTelegramMessage($"firstDestinition geçildi - Symbol: {symbol}, Price: {price:F4}, Avg FR Threshold: {threshold:P2}");
 
                 }
