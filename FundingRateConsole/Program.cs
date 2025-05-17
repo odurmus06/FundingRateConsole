@@ -40,7 +40,7 @@ class Program
     private static string apiSecret = "IjP1ZmJXcrRxnep0koHlqnbELxYagXgm295FP0wHG2Ow3QV2jQCasUAyWEmem38l";
     private static string listenKey;
     // Hedef Değerler ve Eşikler
-    private static decimal firstDestinition = -1.5m;
+    private static decimal firstDestinition = -0.001m;
     private static decimal secondDestinition = -2m;
     private static decimal speedTrashold = 1;
 
@@ -780,23 +780,43 @@ class Program
             {
                 if (nonTargetFundingRates.ContainsKey(symbol))
                 {
-                    var oi = await client.UsdFuturesApi.ExchangeData.GetOpenInterestAsync(symbol);
-                    var ticker = await client.UsdFuturesApi.ExchangeData.GetTickerAsync(symbol);
+                                        var frResult = await client.UsdFuturesApi.ExchangeData.GetFundingRatesAsync(
+                    symbol: symbol,
+                    startTime: DateTime.UtcNow.AddHours(-24),
+                    endTime: DateTime.UtcNow,
+                    limit: 1000);
 
-                    var openInterest = oi.Data?.OpenInterest ?? 0;
-                    var volume = ticker.Data?.QuoteVolume ?? 0;
+                    decimal threshold = 0;
+                    if (frResult.Success && frResult.Data.Any())
+                    {
+                        // 1. Ortalama Funding Rate Hesapla
+                        decimal averageFR = frResult.Data.Average(x => x.FundingRate);
+                        Console.WriteLine($"24 Saatlik Ortalama FR: {averageFR * 100}%");
 
-                    TargetFundingRates[symbol] = new FundingRateRecord
+                        // 2. Standart Sapma Hesapla (Opsiyonel)
+                        decimal stdDev = (decimal)Math.Sqrt(
+                            frResult.Data.Average(x => Math.Pow((double)(x.FundingRate - averageFR), 2)));
+                        Console.WriteLine($"Standart Sapma: {stdDev * 100}%");
+
+                        // 3. Anomalileri Tespit Et (Örneğin: Ortalama - 2x Standart Sapma)
+                        threshold = averageFR - (2 * stdDev);
+
+                    }
+
+                        TargetFundingRates[symbol] = new FundingRateRecord
                     {
                         Timestamp = DateTime.UtcNow,
                         Price = price,
-                        Volume = volume,
-                        OpenInterest = openInterest
+                        Volume = 0,
+                        OpenInterest = 0
                     };
+
+
+
 
                     nonTargetFundingRates.TryRemove(symbol, out _);
 
-                    await SendTelegramMessage($"firstDestinition geçildi  - Symbol: {symbol}");
+                    await SendTelegramMessage($"firstDestinition geçildi - Symbol: {symbol}, Price: {price:F4}, Avg FR Threshold: {threshold:P2}");
 
                 }
                 if (nonTargetFundingRates.ContainsKey(symbol) && TargetFundingRates.ContainsKey(symbol))
