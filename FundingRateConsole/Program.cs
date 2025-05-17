@@ -780,30 +780,9 @@ class Program
             {
                 if (nonTargetFundingRates.ContainsKey(symbol))
                 {
-                                        var frResult = await client.UsdFuturesApi.ExchangeData.GetFundingRatesAsync(
-                    symbol: symbol,
-                    startTime: DateTime.UtcNow.AddHours(-24),
-                    endTime: DateTime.UtcNow,
-                    limit: 1000);
 
-                    decimal threshold = 0;
-                    if (frResult.Success && frResult.Data.Any())
-                    {
-                        // 1. Ortalama Funding Rate Hesapla
-                        decimal averageFR = frResult.Data.Average(x => x.FundingRate);
-                        Console.WriteLine($"24 Saatlik Ortalama FR: {averageFR * 100}%");
 
-                        // 2. Standart Sapma Hesapla (Opsiyonel)
-                        decimal stdDev = (decimal)Math.Sqrt(
-                            frResult.Data.Average(x => Math.Pow((double)(x.FundingRate - averageFR), 2)));
-                        Console.WriteLine($"Standart Sapma: {stdDev * 100}%");
-
-                        // 3. Anomalileri Tespit Et (Örneğin: Ortalama - 2x Standart Sapma)
-                        threshold = averageFR - (10 * stdDev);
-
-                    }
-
-                        TargetFundingRates[symbol] = new FundingRateRecord
+                    TargetFundingRates[symbol] = new FundingRateRecord
                     {
                         Timestamp = DateTime.UtcNow,
                         Price = price,
@@ -816,8 +795,7 @@ class Program
 
                     nonTargetFundingRates.TryRemove(symbol, out _);
 
-                    if(fundingRatePercentage < threshold && threshold != 0)
-                    await SendTelegramMessage($"firstDestinition geçildi - Symbol: {symbol}, Price: {price:F4}, Avg FR Threshold: {threshold:P2}");
+                    await SendTelegramMessage($"firstDestinition geçildi  - Symbol: {symbol}");
 
                 }
                 if (nonTargetFundingRates.ContainsKey(symbol) && TargetFundingRates.ContainsKey(symbol))
