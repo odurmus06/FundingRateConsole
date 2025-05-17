@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FundingRateConsole")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6cc835305d7a57a8810cdc72476817b126675cd7")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+493a1e4e7d96ec5ca3af667657144a0283140fa1")]
 [assembly: System.Reflection.AssemblyProductAttribute("FundingRateConsole")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FundingRateConsole")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
