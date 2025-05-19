@@ -40,7 +40,7 @@ class Program
     private static string apiSecret = "IjP1ZmJXcrRxnep0koHlqnbELxYagXgm295FP0wHG2Ow3QV2jQCasUAyWEmem38l";
     private static string listenKey;
     // Hedef Değerler ve Eşikler
-    private static decimal firstDestinition = -1m;
+    private static decimal firstDestinition = -0.05m;
     private static decimal secondDestinition = -2m;
     private static decimal speedTrashold = 1;
 
@@ -103,37 +103,9 @@ class Program
 
         await StartSubscription();
 
-       
+
         Console.ReadLine();
         Console.ReadKey();
-    }
-
-    private static void SpotOnTickerUpdate(DataEvent<IEnumerable<IBinanceTick>> obj)
-    {
-        foreach (var ticker in obj.Data)
-        {
-            string symbol = ticker.Symbol;
-
-            //Console.WriteLine($"symbol: {symbol} tarih : {DateTime.Now.ToString("HH:mm:ss")}");
-
-
-            if (!spotKnownSymbols.Contains(symbol) && symbol.EndsWith("USDT"))
-            {
-                spotKnownSymbols.Add(symbol);
-
-                _ = SendTelegramMessage($"""
-                🆕 *Spot Yeni Coin Listelendi!*
-
-                📈 Sembol: `{symbol}`
-                📅 Tarih: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
-                🔁 Binance USDT Futures'ta listelendi.
-
-                🚀 İlk fırsatlar için dikkatli ol!
-
-                #Binance #NewListing
-                """);
-            }
-        }
     }
 
 
@@ -372,91 +344,9 @@ class Program
 
     private static async Task StartSubscription()
     {
-        var tickerTask = startTicker();
-        var spotStreamTask = socketClient.SpotApi.ExchangeData.SubscribeToAllTickerUpdatesAsync(SpotOnTickerUpdate);
         var subscribeTask = SubscribeToTickerUpdatesAsync();
         var updataTask = updated();
-        var futuresStreamTask = socketClient.UsdFuturesApi.ExchangeData.SubscribeToAllTickerUpdatesAsync(FuturesOnTickerUpdate);
-
-        await Task.WhenAll(tickerTask, spotStreamTask, subscribeTask, updataTask, futuresStreamTask);
-    }
-
-    private static void FuturesOnTickerUpdate(DataEvent<IEnumerable<IBinance24HPrice>> obj)
-    {
-        foreach (var ticker in obj.Data)
-        {
-            string symbol = ticker.Symbol;
-
-            //Console.WriteLine($"symbol: {symbol} tarih : {DateTime.Now.ToString("HH:mm:ss")}");
-
-
-            if (!futuresKnownSymbols.Contains(symbol) && symbol.EndsWith("USDT"))
-            {
-                futuresKnownSymbols.Add(symbol);
-
-                _ = SendTelegramMessage($"""
-                🆕 *Futures Yeni Coin Listelendi!*
-
-                📈 Sembol: `{symbol}`
-                📅 Tarih: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
-                🔁 Binance USDT Futures'ta listelendi.
-
-                🚀 İlk fırsatlar için dikkatli ol!
-
-                #Binance #NewListing
-                """);
-            }
-        }
-    }
-
-    public static async Task<bool> HacimArtisiVarMi(string symbol)
-    {
-        try
-        {
-            var klinesResult = await client.UsdFuturesApi.ExchangeData
-                .GetKlinesAsync(symbol, KlineInterval.OneMinute, limit: 10);
-
-            if (!klinesResult.Success || klinesResult.Data.Count() < 10)
-            {
-                return false;
-            }
-
-            var klines = klinesResult.Data.ToList();
-            var onceki5Hacim = klines.Take(5).Sum(k => k.Volume);
-            var son5Hacim = klines.Skip(5).Sum(k => k.Volume);
-
-            bool hacimArtisi = son5Hacim > 1.5m * onceki5Hacim;
-
-            return hacimArtisi;
-        }
-        catch (Exception ex)
-        {
-            return false;
-        }
-    }
-
-    public static async Task<bool> SpreadVeLikiditeUygunMu(string symbol)
-    {
-        try
-        {
-            var orderBookResult = await client.UsdFuturesApi.ExchangeData.GetOrderBookAsync(symbol, 5);
-
-            if (!orderBookResult.Success || orderBookResult.Data.Bids.Count() == 0 || orderBookResult.Data.Asks.Count() == 0)
-            {
-                return false;
-            }
-            var bid = orderBookResult.Data.Bids.First(); // En yüksek alış
-            var ask = orderBookResult.Data.Asks.First(); // En düşük satış
-            decimal spread = ask.Price - bid.Price;
-            decimal spreadYuzdesi = spread / ((ask.Price + bid.Price) / 2m) * 100m;
-            bool spreadUygun = spreadYuzdesi <= 0.2m; // %0.2 altı spread kabul
-            bool likiditeYeterli = bid.Quantity >= 500m || ask.Quantity >= 500m;
-            return spreadUygun && likiditeYeterli;
-        }
-        catch (Exception ex)
-        {
-            return false;
-        }
+        await Task.WhenAll(subscribeTask, updataTask);
     }
 
 
@@ -487,34 +377,6 @@ class Program
                     var symbol = update.Data.Symbol;
                     var markPrice = update.Data.MarkPrice;
                     var negativeThreshold = GetNegativeThreshold();
-
-
-
-                    //DateTime nextFundingTime = update.Data.NextFundingTime;
-                    //TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
-
-                    //if (timeRemaining.TotalMinutes <= 2 && fundingRatePercentage < 0)
-                    //{
-                    //    if (!IntervalFundingRates.ContainsKey(symbol))
-                    //    {
-                    //        IntervalFundingRates[symbol] = DateTime.Now;
-
-                    //    string message = $"📉 Scalp Geri Çekilme Fırsatı\n" +
-                    //           $"🔹 Symbol: {symbol}\n" +
-                    //           $"🔹 Funding Rate: {fundingRatePercentage}\n" +
-                    //           $"🔹 Mark Price: {update.Data.MarkPrice:F4}\n";
-
-                    //    await SendTelegramMessage(message);
-                    //}
-                    //}
-                    //else
-                    //{
-                    //    if (IntervalFundingRates.ContainsKey(symbol))
-                    //    {
-                    //        IntervalFundingRates.TryRemove(symbol, out _);
-                    //    }
-                    //}
-
 
                     await HandleFundingRateAsync(symbol, fundingRatePercentage, dateTime, rate => fundingRatePercentage <= negativeThreshold, markPrice);
                 }
@@ -547,227 +409,9 @@ class Program
         await Task.Delay(-1); // sonsuz çalışması için
     }
 
-    private static async Task startTicker()
-    {
-        Console.WriteLine("startTicker() Func Starting...");
-        var tickerSubscriptionResult = await socketClient.UsdFuturesApi.ExchangeData.SubscribeToAllTickerUpdatesAsync(update =>
-        {
-            try
-            {
-                lock (locker)
-                {
-                   
-                    foreach (var ticker in update.Data)
-                    {
-                        if (ticker.QuoteVolume < minimumVolume || string.IsNullOrEmpty(ticker.Symbol))
-                            continue;
-
-                        var existingIndex = topGainers.FindIndex(x => x.Symbol == ticker.Symbol);
-                        var change = ticker.PriceChangePercent;
-
-                        if (existingIndex != -1)
-                        {
-                            // Güncelle
-                            topGainers[existingIndex] = (ticker.Symbol, change);
-                        }
-                        else
-                        {
-                            // Eğer yer varsa ekle
-                            if (topGainers.Count < topGainerCount)
-                            {
-                                topGainers.Add((ticker.Symbol, change));
-                            }
-                            else
-                            {
-                                // En düşük değişim varsa karşılaştır ve gerekiyorsa değiştir
-                                var minChange = topGainers.Min(x => x.Change);
-                                if (change > minChange)
-                                {
-                                    var minIndex = topGainers.FindIndex(x => x.Change == minChange);
-                                    topGainers[minIndex] = (ticker.Symbol, change);
-                                }
-                            }
-                        }
-
-                        // Listeyi her defasında sırala
-                        topGainers = topGainers
-                            .OrderByDescending(x => x.Change)
-                            .Take(topGainerCount)
-                            .ToList();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _ = SendTelegramMessage($"Ticker güncelleme hatası: {ex.Message}");
-            }
-        });
-
-        if (!tickerSubscriptionResult.Success)
-        {
-            Console.WriteLine($"Ticker aboneliği başarısız: {tickerSubscriptionResult.Error}");
-
-            _ = SendTelegramMessage($"Ticker aboneliği başarısız: {tickerSubscriptionResult.Error}");
-
-        }
-    }
-
     private static decimal GetNegativeThreshold()
     {
         return firstDestinition;
-    }
-
-
-    private static async Task CheckVolumeAndMomentumWithFR(string symbol, decimal currentPrice, decimal prevPrice, DateTime prevDate)
-    {
-        try
-        {
-            // Son 24 saatlik 1 saatlik mum verilerini çekiyoruz
-            var klines = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.OneHour, limit: 24);
-            // Son 1 saatin hacmi
-            decimal lastVolume = klines.Data.Last().Volume;
-            // Son 23 saatin ortalama hacmi
-            decimal averageVolume = klines.Data.Take(23).Average(kline => kline.Volume);
-            // Hacim kontrolü
-            bool isVolumeDoubled = lastVolume > (1.8m * averageVolume);
-            bool isVolumeBelowAverage = lastVolume < averageVolume;
-
-            ////////////////////////////////////////////////////////////////7
-
-            var last4Candles = await client.UsdFuturesApi.ExchangeData.GetKlinesAsync(symbol, Binance.Net.Enums.KlineInterval.OneHour, limit: 4);
-            bool isStrongUptrend = last4Candles.Data.All(c => c.ClosePrice > c.OpenPrice);
-
-            // Funding rate kontrolü
-            DateTime nextFundingTime = client.UsdFuturesApi.ExchangeData.GetMarkPriceAsync(symbol).Result.Data.NextFundingTime;
-            TimeSpan timeRemaining = nextFundingTime - DateTime.UtcNow;
-            bool isFundingTimeNear = timeRemaining.TotalMinutes >= 30;
-
-            var BuyVolumeRatio = await GetBuyVolumeRatioFuturesAsync(symbol);
-            bool isBuyVolumeRatioBigger = BuyVolumeRatio >= 0.65m;
-
-            var oiHistory = await client.UsdFuturesApi.ExchangeData.GetOpenInterestHistoryAsync(symbol, Binance.Net.Enums.PeriodInterval.OneHour, limit: 2);
-
-            decimal currentOI = oiHistory.Data.Last().SumOpenInterest;
-            decimal previousOI = oiHistory.Data.First().SumOpenInterest;
-            decimal oiChangePercent = (currentOI - previousOI) / previousOI * 100;
-            bool isOIIncreasing = oiChangePercent >= 10;
-
-
-
-            decimal changePercent = ((currentPrice - prevPrice) / prevPrice) * 100;
-            bool isPriceChangeBigger = changePercent >= 5;
-
-
-
-            // Mesaj oluştur
-            string message = $"📊 *Long Analizi - {symbol}*\n\n";
-
-            // Hacim
-            message += $"💰 *Hacim*: Son saat hacmi: `{lastVolume:N2}`, Ortalama (23 saat): `{averageVolume:N2}`\n";
-            message += isVolumeDoubled
-                ? "✅ *Hacim 2 katına çıkmış, işlem yapılabilir.*\n"
-                : "⚠️ *Hacim artmamış, işlem yapılmamalı.*\n";
-
-            message += $"💰 *Fiyat Değişimi*: Önceki fiyat: `{prevPrice:N4}`, Şu anki fiyat: `{currentPrice:N4}`, Değişim: `{changePercent:N2}%`\n";
-            message += isPriceChangeBigger
-                ? $"✅ *Fiyat %{changePercent}'dan fazla artmış, güçlü hareket olabilir.*\n"
-                : $"⚠️ *Fiyat artışı %{changePercent}'dan az, dikkatli olunmalı.*\n";
-
-            // Momentum
-            message += $"\n📈 *Momentum (Son 5 dakika)*\n";
-            message += isStrongUptrend
-                ? "✅ *Momentum hala iyi, işlem yapılabilir.*\n"
-                : "⚠️ *Momentum zayıf.*\n";
-
-            // Buyer
-            message += $"\n📈 *Last 500 Trades*: %{BuyVolumeRatio:F2}\n";
-            message += isBuyVolumeRatioBigger
-                ? "✅ *Piyasada alıcılar iyi, işlem yapılabilir.*\n"
-                : "⚠️ *Piyasada alıcılar zayıf.*\n";
-
-            // Buyer
-            message += $"\n📈 *Open Interest Değişimi*: %{oiChangePercent:F2}\n";
-            message += isOIIncreasing
-                ? "✅ *Open Interest %10 artmış, işlem yapılabilir.*\n"
-                : "⚠️ *Open Interest artışı zayıf.*\n";
-
-            // Funding Rate
-            message += $"\n🕒 *Funding Rate Zamanı*: {timeRemaining.Hours} saat {timeRemaining.Minutes} dakika\n";
-            message += isFundingTimeNear
-                ? "✅ *Funding time uygun, işlem yapılabilir.*\n"
-                : "⚠️ *Funding time çok yakın, işlem yapma.*\n";
-
-
-
-
-            if (isStrongUptrend)
-            {
-                isOrderActive = true;
-                await PlaceOrderAsync(symbol);
-                message += $"\n📈 *İşleme girildi* \n";
-            }
-            else
-            {
-                message += $"\n📉 *İşleme girilmedi* \n";
-            }
-
-            _ = SendTelegramMessage(message);
-
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("Hata oluştu: " + ex.Message);
-            _ = SendTelegramMessage(ex.Message);
-
-        }
-    }
-
-    private static async Task<decimal> GetBuyVolumeRatioFuturesAsync(string symbol, int limit = 500)
-    {
-        var result = await client.UsdFuturesApi.ExchangeData.GetAggregatedTradeHistoryAsync(symbol, limit: limit);
-
-        if (!result.Success)
-        {
-            Console.WriteLine($"Futures işlem verisi alınamadı: {result.Error}");
-            return 0;
-        }
-
-        decimal buyVolume = 0;
-        decimal sellVolume = 0;
-
-        foreach (var trade in result.Data)
-        {
-            if (trade.BuyerIsMaker)
-                sellVolume += trade.Quantity;
-            else
-                buyVolume += trade.Quantity;
-        }
-
-        decimal totalVolume = buyVolume + sellVolume;
-        if (totalVolume == 0)
-            return 0;
-
-        return buyVolume / totalVolume;
-    }
-
-    private static async Task<bool> IsLongVolumeDominant(string symbol)
-    {
-        var tradesResult = await client.UsdFuturesApi.ExchangeData.GetTradeHistoryAsync(symbol, limit: 1000);
-
-        if (!tradesResult.Success)
-            throw new Exception("Trade verileri alınamadı: " + tradesResult.Error);
-
-        var trades = tradesResult.Data;
-
-        decimal buyVolume = trades
-            .Where(t => !t.BuyerIsMaker)
-            .Sum(t => t.QuoteQuantity);
-
-        decimal sellVolume = trades
-            .Where(t => t.BuyerIsMaker)
-            .Sum(t => t.QuoteQuantity);
-
-        return buyVolume > sellVolume * 1.2m;
     }
 
     private static async Task HandleFundingRateAsync(string symbol, decimal fundingRatePercentage, string dateTime, Func<decimal, bool> condition, decimal price)
@@ -791,11 +435,41 @@ class Program
                     };
 
 
+                    var funding = await client.UsdFuturesApi.ExchangeData.GetFundingRatesAsync(
+                        symbol: symbol,
+                        startTime: DateTime.UtcNow.AddDays(-3),
+                        endTime: DateTime.UtcNow,
+                        limit: 100
+                    );
+
+                    if (funding.Success)
+                    {
+                        var estimatedAdjustedFundingFloor = funding.Data.Min(x => x.FundingRate);
+
+                        if (fundingRatePercentage <= estimatedAdjustedFundingFloor * 0.95m)
+                        {
+                            await SendTelegramMessage($"""
+                            🚨 *Short Squeeze Fırsatı Tespit Edildi!*
+
+                            📌 *Symbol:* `{symbol}`
+                            💰 *Fiyat:* {price:F4} USDT
+                            📉 *Funding Rate:* {fundingRatePercentage:P4}
+                            🔻 *Min Floor Değeri:* {estimatedAdjustedFundingFloor:P4}
+
+                            📈 Funding rate kritik seviyeye yaklaştı ve squeeze ihtimali arttı. Yakından izlenmeli!
+                            """);
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Funding verisi alınamadı: " + funding.Error);
+                    }
+
 
 
                     nonTargetFundingRates.TryRemove(symbol, out _);
 
-                    await SendTelegramMessage($"firstDestinition geçildi  - Symbol: {symbol}");
+                 
 
                 }
                 if (nonTargetFundingRates.ContainsKey(symbol) && TargetFundingRates.ContainsKey(symbol))
@@ -807,66 +481,13 @@ class Program
 
                 if (fundingRatePercentage <= secondDestinition &&
                     TargetFundingRates.ContainsKey(symbol) &&
-                    topGainers.Any(x => x.Symbol.Equals(symbol)) &&
                     isOrderActive == false
                     )
                 {
 
-                    var bulunan = topGainers.FirstOrDefault(x => x.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase));
 
-                    // Change değerini kontrol edip, formatlıyoruz
-                    string changeText = !string.IsNullOrEmpty(bulunan.Symbol)
-                        ? bulunan.Change.ToString("0.00") + "%"
-                        : "Bulunamadı";
 
-                    // Mesajı göndermekte kullanıyoruz:
-                    var prev = TargetFundingRates[symbol];
-
-                    var oi = await client.UsdFuturesApi.ExchangeData.GetOpenInterestAsync(symbol);
-                    var ticker = await client.UsdFuturesApi.ExchangeData.GetTickerAsync(symbol);
-
-                    var openInterest = oi.Data?.OpenInterest ?? 0;
-                    var volume = ticker.Data?.QuoteVolume ?? 0;
-
-                    decimal priceChange = ((price - prev.Price) / prev.Price) * 100;
-                    decimal oiChange = ((openInterest - prev.OpenInterest) / prev.OpenInterest) * 100;
-                    decimal volumeChange = ((volume - prev.Volume) / prev.Volume) * 100;
-
-                    // Sinyal yorumu belirleme
-                    string yorum;
-
-                    if (priceChange > 0 && oiChange > 0 && volumeChange > 20 && IsLongVolumeDominant(symbol).Result)
-                    {
-                        yorum = "🔥 Güçlü long sinyali! \n";
-                        isOrderActive = true;
-                        await PlaceOrderAsync(symbol);
-                        yorum += $"\n📈 *İşleme girildi* \n";
-                    }
-                    else if (priceChange < 0 && oiChange > 0)
-                    {
-                        yorum = "⚠️ Fiyat düşse de OI artıyor → squeeze olabilir! \n";
-                        yorum += $"\n📉 *İşleme girilmedi* \n";
-                    }
-                    else
-                    {
-                        yorum = "📉 Sinyal zayıf, işlem yapılmayabilir. \n";
-                        yorum += $"\n📉 *İşleme girilmedi* \n";
-                    }
-
-                    // Telegram mesajı
-                    string telegramMessage = $@"
-                        📊 Funding Analizi - {symbol}
-
-                        🕒 Aralık: -1.5% ➜ -2%
-                        💰 Fiyat: {price}  
-                        📈 Price Change: {priceChange:F2}%
-                        📊 OI Change: {oiChange:F2}%
-                        🔄 Volume Change: {volumeChange:F2}%
-
-                        📌 Yorum: {yorum}
-                        ";
-
-                    await SendTelegramMessage(telegramMessage);
+                    await SendTelegramMessage("second");
                     TargetFundingRates.TryRemove(symbol, out _);
                 }
             }
