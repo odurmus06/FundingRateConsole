@@ -82,14 +82,14 @@ class Program
         var listenKeyResult = client.UsdFuturesApi.Account.StartUserStreamAsync();
         listenKey = listenKeyResult.Result.Data;
 
-        //_ = Task.Run(async () =>
-        //{
-        //    while (true)
-        //    {
-        //        await Task.Delay(TimeSpan.FromMinutes(30));
-        //        await client.UsdFuturesApi.Account.KeepAliveUserStreamAsync(listenKey);
-        //    }
-        //});
+        _ = Task.Run(async () =>
+        {
+            while (true)
+            {
+                await Task.Delay(TimeSpan.FromMinutes(30));
+                await client.UsdFuturesApi.Account.KeepAliveUserStreamAsync(listenKey);
+            }
+        });
 
         // Mevcut sembolleri belleğe al
         //var spotSymbols = await client.SpotApi.ExchangeData.GetExchangeInfoAsync();
