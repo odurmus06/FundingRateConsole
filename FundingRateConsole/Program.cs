@@ -40,8 +40,8 @@ class Program
     private static string apiSecret = "IjP1ZmJXcrRxnep0koHlqnbELxYagXgm295FP0wHG2Ow3QV2jQCasUAyWEmem38l";
     private static string listenKey;
     // Hedef Değerler ve Eşikler
-    private static decimal firstDestinition = -0.05m;
-    private static decimal secondDestinition = -2m;
+    private static decimal firstDestinition = -0.0100m;
+    private static decimal secondDestinition = 0.0050m;
     private static decimal speedTrashold = 1;
 
     // Top Gainers
@@ -82,24 +82,24 @@ class Program
         var listenKeyResult = client.UsdFuturesApi.Account.StartUserStreamAsync();
         listenKey = listenKeyResult.Result.Data;
 
-        _ = Task.Run(async () =>
-        {
-            while (true)
-            {
-                await Task.Delay(TimeSpan.FromMinutes(30));
-                await client.UsdFuturesApi.Account.KeepAliveUserStreamAsync(listenKey);
-            }
-        });
+        //_ = Task.Run(async () =>
+        //{
+        //    while (true)
+        //    {
+        //        await Task.Delay(TimeSpan.FromMinutes(30));
+        //        await client.UsdFuturesApi.Account.KeepAliveUserStreamAsync(listenKey);
+        //    }
+        //});
 
         // Mevcut sembolleri belleğe al
-        var spotSymbols = await client.SpotApi.ExchangeData.GetExchangeInfoAsync();
-        var futuresSymbols = await client.UsdFuturesApi.ExchangeData.GetExchangeInfoAsync();
+        //var spotSymbols = await client.SpotApi.ExchangeData.GetExchangeInfoAsync();
+        //var futuresSymbols = await client.UsdFuturesApi.ExchangeData.GetExchangeInfoAsync();
 
-        foreach (var s in spotSymbols.Data.Symbols)
-            spotKnownSymbols.Add(s.Name);
+        //foreach (var s in spotSymbols.Data.Symbols)
+        //    spotKnownSymbols.Add(s.Name);
 
-        foreach (var s in futuresSymbols.Data.Symbols)
-            futuresKnownSymbols.Add(s.Name);
+        //foreach (var s in futuresSymbols.Data.Symbols)
+        //    futuresKnownSymbols.Add(s.Name);
 
         await StartSubscription();
 
@@ -378,7 +378,7 @@ class Program
                     var markPrice = update.Data.MarkPrice;
                     var negativeThreshold = GetNegativeThreshold();
 
-                    await HandleFundingRateAsync(symbol, fundingRatePercentage, dateTime, rate => fundingRatePercentage <= negativeThreshold, markPrice);
+                    await HandleFundingRateAsync(symbol, fundingRatePercentage, dateTime, rate => fundingRatePercentage >= negativeThreshold, markPrice);
                 }
                 catch (Exception ex)
                 {
@@ -435,35 +435,7 @@ class Program
                     };
 
 
-                    var funding = await client.UsdFuturesApi.ExchangeData.GetFundingRatesAsync(
-                        symbol: symbol,
-                        startTime: DateTime.UtcNow.AddDays(-3),
-                        endTime: DateTime.UtcNow,
-                        limit: 100
-                    );
-
-                    if (funding.Success)
-                    {
-                        var estimatedAdjustedFundingFloor = funding.Data.Min(x => x.FundingRate);
-
-                        if (fundingRatePercentage <= estimatedAdjustedFundingFloor * 0.95m)
-                        {
-                            await SendTelegramMessage($"""
-                            🚨 *Short Squeeze Fırsatı Tespit Edildi!*
-
-                            📌 *Symbol:* `{symbol}`
-                            💰 *Fiyat:* {price:F4} USDT
-                            📉 *Funding Rate:* {fundingRatePercentage:P4}
-                            🔻 *Min Floor Değeri:* {estimatedAdjustedFundingFloor:P4}
-
-                            📈 Funding rate kritik seviyeye yaklaştı ve squeeze ihtimali arttı. Yakından izlenmeli!
-                            """);
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("Funding verisi alınamadı: " + funding.Error);
-                    }
+                    await SendTelegramMessage($"📢 First sinyali\n\n🔹 Sembol: {symbol}\n💰 Fiyat: {price}");
 
 
 
@@ -479,7 +451,7 @@ class Program
 
                 }
 
-                if (fundingRatePercentage <= secondDestinition &&
+                if (fundingRatePercentage >= secondDestinition &&
                     TargetFundingRates.ContainsKey(symbol) &&
                     isOrderActive == false
                     )
@@ -487,7 +459,8 @@ class Program
 
 
 
-                    await SendTelegramMessage("second");
+                    await SendTelegramMessage($"📢 Second sinyali\n\n🔹 Sembol: {symbol}\n💰 Fiyat: {price}");
+
                     TargetFundingRates.TryRemove(symbol, out _);
                 }
             }
