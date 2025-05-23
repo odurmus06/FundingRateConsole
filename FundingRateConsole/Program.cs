@@ -40,8 +40,8 @@ class Program
     private static string apiSecret = "IjP1ZmJXcrRxnep0koHlqnbELxYagXgm295FP0wHG2Ow3QV2jQCasUAyWEmem38l";
     private static string listenKey;
     // Hedef Değerler ve Eşikler
-    private static decimal firstDestinition = 0.0050m;
-    private static decimal secondDestinition = -0.001m;
+    private static decimal firstDestinition = -0.0100m;
+    private static decimal secondDestinition = 0.0050m;
     private static decimal speedTrashold = 1;
 
     // Top Gainers
@@ -451,7 +451,7 @@ class Program
 
                 }
 
-                if (fundingRatePercentage <= secondDestinition &&
+                if (fundingRatePercentage >= secondDestinition &&
                     TargetFundingRates.ContainsKey(symbol) &&
                     isOrderActive == false
                     )
