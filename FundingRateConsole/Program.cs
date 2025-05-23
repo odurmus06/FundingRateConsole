@@ -425,7 +425,6 @@ class Program
                 if (nonTargetFundingRates.ContainsKey(symbol))
                 {
 
-
                     TargetFundingRates[symbol] = new FundingRateRecord
                     {
                         Timestamp = DateTime.UtcNow,
@@ -434,15 +433,9 @@ class Program
                         OpenInterest = 0
                     };
 
-
-                    await SendTelegramMessage($"📢 First sinyali\n\n🔹 Sembol: {symbol}\n💰 Fiyat: {price}");
-
-
+                    //await SendTelegramMessage($"📢 First sinyali\n\n🔹 Sembol: {symbol}\n💰 Fiyat: {price}");
 
                     nonTargetFundingRates.TryRemove(symbol, out _);
-
-                 
-
                 }
                 if (nonTargetFundingRates.ContainsKey(symbol) && TargetFundingRates.ContainsKey(symbol))
                 {
@@ -456,9 +449,6 @@ class Program
                     isOrderActive == false
                     )
                 {
-
-
-
                     await SendTelegramMessage($"📢 Second sinyali\n\n🔹 Sembol: {symbol}\n💰 Fiyat: {price}");
 
                     TargetFundingRates.TryRemove(symbol, out _);
