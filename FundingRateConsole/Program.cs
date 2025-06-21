@@ -46,7 +46,7 @@ class Program
 
     // Top Gainers
     private static List<(string Symbol, decimal Change)> topGainers = new();
-    private const int topGainerCount = 20;
+    private const int topGainerCount = 2;
     private const decimal minimumVolume = 10_000_000;
 
     // Order Durumu
@@ -54,9 +54,6 @@ class Program
 
     // Diğer Değişkenler
     private static readonly object locker = new();
-
-    static HashSet<string> spotKnownSymbols = new();
-    static HashSet<string> futuresKnownSymbols = new();
     static async Task Main(string[] args)
     {
         _ = SendTelegramMessage("Console Uygulaması başlatıldı.");
@@ -91,15 +88,7 @@ class Program
             }
         });
 
-        // Mevcut sembolleri belleğe al
-        var spotSymbols = await client.SpotApi.ExchangeData.GetExchangeInfoAsync();
-        var futuresSymbols = await client.UsdFuturesApi.ExchangeData.GetExchangeInfoAsync();
-
-        foreach (var s in spotSymbols.Data.Symbols)
-            spotKnownSymbols.Add(s.Name);
-
-        foreach (var s in futuresSymbols.Data.Symbols)
-            futuresKnownSymbols.Add(s.Name);
+     
 
         await StartSubscription();
 
@@ -248,7 +237,7 @@ class Program
     }
     static async Task PlaceOrderAsync(string symbol)
     {
-        decimal desiredLeverage = 10;
+        decimal desiredLeverage = 6;
 
         // 1. Sembol bilgilerini al
         var exchangeInfo = await client.UsdFuturesApi.ExchangeData.GetExchangeInfoAsync();
@@ -344,11 +333,71 @@ class Program
 
     private static async Task StartSubscription()
     {
+        var tickerTask =  startTicker();
         var subscribeTask = SubscribeToTickerUpdatesAsync();
         var updataTask = updated();
-        await Task.WhenAll(subscribeTask, updataTask);
+        await Task.WhenAll(tickerTask, subscribeTask, updataTask);
     }
 
+    private static async Task startTicker()
+    {
+        var tickerSubscriptionResult = await socketClient.UsdFuturesApi.ExchangeData.SubscribeToAllTickerUpdatesAsync(update =>
+        {
+            try
+            {
+                lock (locker)
+                {
+                    foreach (var ticker in update.Data)
+                    {
+                        if (ticker.QuoteVolume < minimumVolume || string.IsNullOrEmpty(ticker.Symbol))
+                            continue;
+
+                        var existingIndex = topGainers.FindIndex(x => x.Symbol == ticker.Symbol);
+                        var change = ticker.PriceChangePercent;
+
+                        if (existingIndex != -1)
+                        {
+                            // Güncelle
+                            topGainers[existingIndex] = (ticker.Symbol, change);
+                        }
+                        else
+                        {
+                            // Eğer yer varsa ekle
+                            if (topGainers.Count < topGainerCount)
+                            {
+                                topGainers.Add((ticker.Symbol, change));
+                            }
+                            else
+                            {
+                                // En düşük değişim varsa karşılaştır ve gerekiyorsa değiştir
+                                var minChange = topGainers.Min(x => x.Change);
+                                if (change > minChange)
+                                {
+                                    var minIndex = topGainers.FindIndex(x => x.Change == minChange);
+                                    topGainers[minIndex] = (ticker.Symbol, change);
+                                }
+                            }
+                        }
+
+                        // Listeyi her defasında sırala
+                        topGainers = topGainers
+                            .OrderByDescending(x => x.Change)
+                            .Take(topGainerCount)
+                            .ToList();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ticker güncelleme hatası: {ex.Message}");
+            }
+        });
+
+        if (!tickerSubscriptionResult.Success)
+        {
+            Console.WriteLine($"Ticker aboneliği başarısız: {tickerSubscriptionResult.Error}");
+        }
+    }
 
     private static async Task SubscribeToTickerUpdatesAsync()
     {
@@ -414,6 +463,7 @@ class Program
         return firstDestinition;
     }
 
+
     private static async Task HandleFundingRateAsync(string symbol, decimal fundingRatePercentage, string dateTime, Func<decimal, bool> condition, decimal price)
     {
         try
@@ -424,52 +474,10 @@ class Program
             {
                 if (nonTargetFundingRates.ContainsKey(symbol))
                 {
-
-
-                    TargetFundingRates[symbol] = new FundingRateRecord
-                    {
-                        Timestamp = DateTime.UtcNow,
-                        Price = price,
-                        Volume = 0,
-                        OpenInterest = 0
-                    };
-
-
-                    var funding = await client.UsdFuturesApi.ExchangeData.GetFundingRatesAsync(
-                        symbol: symbol,
-                        startTime: DateTime.UtcNow.AddDays(-3),
-                        endTime: DateTime.UtcNow,
-                        limit: 100
-                    );
-
-                    if (funding.Success)
-                    {
-                        var estimatedAdjustedFundingFloor = funding.Data.Min(x => x.FundingRate);
-
-                        if (fundingRatePercentage <= estimatedAdjustedFundingFloor * 0.95m)
-                        {
-                            await SendTelegramMessage($"""
-                            🚨 *Short Squeeze Fırsatı Tespit Edildi!*
-
-                            📌 *Symbol:* `{symbol}`
-                            💰 *Fiyat:* {price:F4} USDT
-                            📉 *Funding Rate:* {fundingRatePercentage:P4}
-                            🔻 *Min Floor Değeri:* {estimatedAdjustedFundingFloor:P4}
-
-                            📈 Funding rate kritik seviyeye yaklaştı ve squeeze ihtimali arttı. Yakından izlenmeli!
-                            """);
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("Funding verisi alınamadı: " + funding.Error);
-                    }
-
-
-
+                    TargetFundingRates[symbol] = new FundingRateRecord { Price = price , Timestamp = DateTime.Now};
                     nonTargetFundingRates.TryRemove(symbol, out _);
 
-                 
+                    await SendTelegramMessage($"firstDestinition geçildi  - Symbol: {symbol}");
 
                 }
                 if (nonTargetFundingRates.ContainsKey(symbol) && TargetFundingRates.ContainsKey(symbol))
@@ -481,13 +489,22 @@ class Program
 
                 if (fundingRatePercentage <= secondDestinition &&
                     TargetFundingRates.ContainsKey(symbol) &&
+                    topGainers.Any(x => x.Symbol.Equals(symbol)) &&
                     isOrderActive == false
                     )
                 {
 
+                    var bulunan = topGainers.FirstOrDefault(x => x.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase));
 
+                    // Change değerini kontrol edip, formatlıyoruz
+                    string changeText = !string.IsNullOrEmpty(bulunan.Symbol)
+                        ? bulunan.Change.ToString("0.00") + "%"
+                        : "Bulunamadı";
 
-                    await SendTelegramMessage("second");
+                    // Mesajı göndermekte kullanıyoruz:
+                    await SendTelegramMessage($"second geçildi  - Symbol: {symbol} | Funding Rate: {fundingRatePercentage} | Mark Price: {price} | Change: {changeText}");
+
+                    await PlaceOrderAsync(symbol);
                     TargetFundingRates.TryRemove(symbol, out _);
                 }
             }
@@ -495,7 +512,7 @@ class Program
             {
                 if (!nonTargetFundingRates.ContainsKey(symbol))
                 {
-                    nonTargetFundingRates[symbol] = new FundingRateRecord();
+                    nonTargetFundingRates[symbol] = TargetFundingRates[symbol] = new FundingRateRecord { Price = price, Timestamp = DateTime.Now };
 
                 }
                 else if (TargetFundingRates.ContainsKey(symbol))
@@ -514,7 +531,5 @@ class Program
 public class FundingRateRecord
 {
     public DateTime Timestamp { get; set; }
-    public decimal OpenInterest { get; set; }
     public decimal Price { get; set; }
-    public decimal Volume { get; set; }
 }
